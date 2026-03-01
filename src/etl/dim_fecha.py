@@ -1,5 +1,4 @@
 import holidays
-from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
     col, year, month, dayofmonth, date_format,
     when, dayofweek, udf
@@ -17,18 +16,18 @@ def procesar_dim_fecha():
             to_date('2015-01-01'),
             to_date('2025-12-31'),
             interval 1 day
-        )) AS fechaString
+        )) AS fecha
     """)
 
     print("2. Extrayendo componentes de fecha...")
     df_date = df_date \
-        .withColumn("dia",       dayofmonth(col("fechaString"))) \
-        .withColumn("mes",       month(col("fechaString"))) \
-        .withColumn("año",       year(col("fechaString"))) \
-        .withColumn("mesString", date_format(col("fechaString"), "MMMM")) \
-        .withColumn("fechaString", date_format(col("fechaString"), "yyyy-MM-dd"))
+        .withColumn("dia",         dayofmonth(col("fecha"))) \
+        .withColumn("mes",         month(col("fecha"))) \
+        .withColumn("año",         year(col("fecha"))) \
+        .withColumn("mesString",   date_format(col("fecha"), "MMMM")) \
+        .withColumn("fechaString", date_format(col("fecha"), "yyyy-MM-dd"))
 
-    print("3. Calculando estación del año...")
+    print("3. Calculando estacion del año...")
     df_date = df_date.withColumn("estacion",
         when(col("mes").isin(1, 2, 3),  "Invierno")
         .when(col("mes").isin(4, 5, 6), "Primavera")
@@ -36,22 +35,24 @@ def procesar_dim_fecha():
         .otherwise("Otoño")
     )
 
+    # dayofweek sobre columna tipo DATE (no string)
     print("4. Calculando fin de semana...")
-    # dayofweek: 1=Domingo, 7=Sábado en Spark
     df_date = df_date.withColumn("finde",
-        when(dayofweek(col("fechaString")).isin(1, 7), True).otherwise(False)
+        when(dayofweek(col("fecha")).isin(1, 7), True).otherwise(False)
     )
 
     print("5. Calculando festivos de España...")
     dias_festivos = holidays.Spain(years=range(2015, 2026))
 
     def es_festivo(fecha_str):
+        if not fecha_str:
+            return False
         try:
             from datetime import date
             parts = fecha_str.split("-")
             d = date(int(parts[0]), int(parts[1]), int(parts[2]))
             return d in dias_festivos
-        except Exception:
+        except (ValueError, IndexError, TypeError):
             return False
 
     festivo_udf = udf(es_festivo, BooleanType())
@@ -59,10 +60,9 @@ def procesar_dim_fecha():
 
     print("6. Generando Smart Key YYYYMMDD...")
     df_date = df_date.withColumn("idDate",
-        date_format(col("fechaString"), "yyyyMMdd").cast("integer")
+        date_format(col("fecha"), "yyyyMMdd").cast("integer")
     )
 
-    # Reordenamos columnas igual que el schema de Hive
     df_date = df_date.select(
         "idDate", "dia", "mes", "año", "festivo",
         "finde", "fechaString", "mesString", "estacion"
@@ -72,7 +72,7 @@ def procesar_dim_fecha():
 
     print("7. Guardando en Hive (Parquet)...")
     df_date.write.mode("overwrite").format("parquet").saveAsTable("dim_fecha")
-    print("¡Dimensión Fecha completada!")
+    print("Dimension Fecha completada!")
 
 
 if __name__ == "__main__":

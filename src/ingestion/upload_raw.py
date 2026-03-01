@@ -46,6 +46,7 @@ LOCAL_BASE = Path("data/raw")
 # Archivos de usuario que nos interesan (el resto los ignoramos)
 ARCHIVOS_USUARIO = {
     "StreamingHistory_music_*.json",
+    "Playlist1.json",
     "Userdata.json"
 }
 

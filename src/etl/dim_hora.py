@@ -25,7 +25,7 @@ def procesar_dim_hora():
 
     print("2. Guardando en Hive (Parquet)...")
     df_hora.write.mode("overwrite").format("parquet").saveAsTable("dim_hora")
-    print("¡Dimensión Hora completada!")
+    print("Dimension Hora completada!")
 
 
 if __name__ == "__main__":

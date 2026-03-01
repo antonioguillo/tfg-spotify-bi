@@ -1,13 +1,17 @@
-import os
 from pyspark.sql.functions import col, monotonically_increasing_id, lit, regexp_replace
 from src.utils.spark_session import get_spark_session
+from src.utils.paths import HDFS_FEATURES_CSV, HDFS_ALBUMS_INFO
 
 
 def procesar_dim_album():
     spark = get_spark_session("ETL_Dimension_Album")
 
-    print("1. Leyendo álbumes de nuestro dataset...")
-    df_base = spark.read.option("header", "true").csv("data/raw/temp_api/canciones_features_kaggle.csv")
+    # ==========================================================
+    # 1. Leer álbumes desde Bronze en HDFS
+    # ==========================================================
+    print("1. Leyendo álbumes de nuestro dataset (HDFS Bronze)...")
+    print(f"   Ruta: {HDFS_FEATURES_CSV}")
+    df_base = spark.read.option("header", "true").csv(HDFS_FEATURES_CSV)
 
     df_album = df_base.select(
         col("album").alias("nombre"),
@@ -19,10 +23,13 @@ def procesar_dim_album():
     print("2. Limpiando emojis y caracteres no ASCII...")
     df_album = df_album.withColumn("nombre", regexp_replace(col("nombre"), r"[^\x00-\x7F]+", ""))
 
-    print("3. Cruzando con productoras de MusicBrainz...")
-    ruta_productoras = "data/raw/temp_api/albums_info.csv"
-    if os.path.exists(ruta_productoras):
-        df_prod = spark.read.option("header", "true").csv(ruta_productoras)
+    # ==========================================================
+    # 3. Cruzar con productoras de MusicBrainz desde HDFS
+    # ==========================================================
+    print("3. Cruzando con productoras de MusicBrainz (HDFS Bronze)...")
+    print(f"   Ruta: {HDFS_ALBUMS_INFO}")
+    try:
+        df_prod = spark.read.option("header", "true").csv(HDFS_ALBUMS_INFO)
         df_prod = df_prod.select(
             col("Album").alias("nombre"),
             col("Artista").alias("artista"),
@@ -30,15 +37,18 @@ def procesar_dim_album():
         )
         df_album = df_album.join(df_prod, on=["nombre", "artista"], how="left")
         df_album = df_album.fillna("Desconocido", subset=["productora"])
-        print("   Productoras cargadas correctamente.")
-    else:
-        print("   [SKIP] albums_info.csv no encontrado — ejecuta get_albums_info.py")
+        print("   Productoras cargadas correctamente desde HDFS.")
+    except Exception as e:
+        print(f"   [SKIP] No se pudo leer albums_info.csv de HDFS: {e}")
         df_album = df_album.withColumn("productora", lit("Desconocido"))
 
+    # ==========================================================
+    # 4. Generar IDs + fila Desconocido + guardar en Hive
+    # ==========================================================
     print("4. Generando IDs autoincrementales...")
     df_album = df_album.withColumn("idAlbum", monotonically_increasing_id())
 
-    print("5. Añadiendo la fila 'Desconocido' (ID -1) para integridad referencial...")
+    print("5. Añadiendo la fila 'Desconocido' (ID -1)...")
     fila_desconocido = spark.createDataFrame([{
         "nombre":     "Desconocido",
         "artista":    "Desconocido",
