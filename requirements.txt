@@ -4,3 +4,6 @@ holidays==0.46
 python-dotenv==1.0.1
 pandas==2.2.2
 requests==2.32.3
+rapidfuzz==3.6.1
+beautifulsoup4==4.12.3
+kagglehub==0.2.7

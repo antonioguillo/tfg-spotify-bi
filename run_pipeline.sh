@@ -128,35 +128,40 @@ fi
 success "canciones_features_kaggle.csv generado"
 
 # ============================================================
-# PASO 3: SUBIDA A HDFS — Capa Bronze
+# PASO 3: ENRIQUECIMIENTO — MusicBrainz + Every Noise at Once
 # ============================================================
-step "3" "Ingesta — Subiendo datos crudos a HDFS (capa Bronze)"
+step "3" "Enriquecimiento — MusicBrainz + Every Noise at Once"
 
-HDFS_BRONZE="/user/spotify_bi/bronze"
-log "Creando estructura de directorios en HDFS..."
-hdfs dfs -mkdir -p "$HDFS_BRONZE/raw_data_spotify"
-hdfs dfs -mkdir -p "$HDFS_BRONZE/features"
+log "Obteniendo tipo y país de artistas (MusicBrainz)..."
+run_python "src/extraction/get_info_artistas.py"
 
-log "Subiendo historiales de streaming..."
-hdfs dfs -put -f "$PROJECT_DIR/data/raw/raw_data_spotify" "$HDFS_BRONZE/"
+log "Obteniendo géneros de artistas (Every Noise at Once)..."
+run_python "src/extraction/get_generos_artistas.py"
 
-log "Subiendo features..."
-hdfs dfs -put -f "$PROJECT_DIR/data/raw/temp_api/canciones_features_kaggle.csv" "$HDFS_BRONZE/features/"
+log "Obteniendo productoras de álbumes (MusicBrainz)..."
+run_python "src/extraction/get_albums_info.py"
 
+success "Enriquecimiento completado"
+
+# ============================================================
+# PASO 4: INGESTA — Subida de datos crudos a HDFS (capa Bronze)
+# ============================================================
+step "4" "Ingesta — Subiendo datos crudos a HDFS (capa Bronze)"
+run_python "src/ingestion/upload_raw.py"
 success "Datos crudos en HDFS Bronze"
 
 # ============================================================
-# PASO 4: DDL — Crear esquema en Hive
+# PASO 5: DDL — Crear esquema en Hive
 # ============================================================
-step "4" "Data Warehouse — Creando esquema estrella en Hive"
+step "5" "Data Warehouse — Creando esquema estrella en Hive"
 log "Ejecutando hive_schema.sql..."
 $HIVE -f "$PROJECT_DIR/ddl/hive_schema.sql" >> "$LOG_FILE" 2>&1 || error "Falló hive_schema.sql"
 success "Esquema Hive creado"
 
 # ============================================================
-# PASO 5: ETL DIMENSIONES
+# PASO 6: ETL DIMENSIONES
 # ============================================================
-step "5" "ETL — Procesando dimensiones"
+step "6" "ETL — Procesando dimensiones"
 
 log "Dimensión Fecha..."
 run_spark "src/etl/dim_fecha.py"
@@ -177,25 +182,25 @@ log "Dimensión Canción..."
 run_spark "src/etl/dim_cancion.py"
 
 # ============================================================
-# PASO 6: ETL TABLA DE HECHOS
+# PASO 7: ETL TABLA DE HECHOS
 # ============================================================
-step "6" "ETL — Procesando tabla de hechos"
+step "7" "ETL — Procesando tabla de hechos"
 run_spark "src/etl/fact_table.py"
 
 # ============================================================
-# PASO 7: VERIFICACIÓN FINAL
+# PASO 8: VERIFICACIÓN FINAL
 # ============================================================
-step "7" "Verificación — Comprobando tablas en Hive"
+step "8" "Verificación — Comprobando tablas en Hive"
 
 log "Contando registros en cada tabla..."
 $HIVE -e "
 USE spotify_dw;
-SELECT 'dim_artista'  AS tabla, COUNT(*) AS registros FROM dim_artista  UNION ALL
-SELECT 'dim_album'    AS tabla, COUNT(*) AS registros FROM dim_album    UNION ALL
-SELECT 'dim_cancion'  AS tabla, COUNT(*) AS registros FROM dim_cancion  UNION ALL
-SELECT 'dim_fecha'    AS tabla, COUNT(*) AS registros FROM dim_fecha    UNION ALL
-SELECT 'dim_hora'     AS tabla, COUNT(*) AS registros FROM dim_hora     UNION ALL
-SELECT 'dim_usuario'  AS tabla, COUNT(*) AS registros FROM dim_usuario  UNION ALL
+SELECT 'dim_artista'    AS tabla, COUNT(*) AS registros FROM dim_artista    UNION ALL
+SELECT 'dim_album'      AS tabla, COUNT(*) AS registros FROM dim_album      UNION ALL
+SELECT 'dim_cancion'    AS tabla, COUNT(*) AS registros FROM dim_cancion    UNION ALL
+SELECT 'dim_fecha'      AS tabla, COUNT(*) AS registros FROM dim_fecha      UNION ALL
+SELECT 'dim_hora'       AS tabla, COUNT(*) AS registros FROM dim_hora       UNION ALL
+SELECT 'dim_usuario'    AS tabla, COUNT(*) AS registros FROM dim_usuario    UNION ALL
 SELECT 'fact_historial' AS tabla, COUNT(*) AS registros FROM fact_historial;
 " 2>&1 | tee -a "$LOG_FILE"
 

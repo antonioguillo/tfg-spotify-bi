@@ -1,3 +1,4 @@
+import os
 from pyspark.sql.functions import col, monotonically_increasing_id, lit, regexp_replace
 from src.utils.spark_session import get_spark_session
 
@@ -16,34 +17,40 @@ def procesar_dim_album():
     df_album = df_album.fillna("Desconocido", subset=["nombre", "artista"])
 
     print("2. Limpiando emojis y caracteres no ASCII...")
-    regex_emojis = r"[^\x00-\x7F]+"
-    df_album = df_album.withColumn("nombre", regexp_replace(col("nombre"), regex_emojis, ""))
+    df_album = df_album.withColumn("nombre", regexp_replace(col("nombre"), r"[^\x00-\x7F]+", ""))
 
-    print("3. Añadiendo la columna Productora...")
-    df_album = df_album.withColumn("productora", lit("Desconocido"))
+    print("3. Cruzando con productoras de MusicBrainz...")
+    ruta_productoras = "data/raw/temp_api/albums_info.csv"
+    if os.path.exists(ruta_productoras):
+        df_prod = spark.read.option("header", "true").csv(ruta_productoras)
+        df_prod = df_prod.select(
+            col("Album").alias("nombre"),
+            col("Artista").alias("artista"),
+            col("Productora").alias("productora")
+        )
+        df_album = df_album.join(df_prod, on=["nombre", "artista"], how="left")
+        df_album = df_album.fillna("Desconocido", subset=["productora"])
+        print("   Productoras cargadas correctamente.")
+    else:
+        print("   [SKIP] albums_info.csv no encontrado — ejecuta get_albums_info.py")
+        df_album = df_album.withColumn("productora", lit("Desconocido"))
 
     print("4. Generando IDs autoincrementales...")
     df_album = df_album.withColumn("idAlbum", monotonically_increasing_id())
 
     print("5. Añadiendo la fila 'Desconocido' (ID -1) para integridad referencial...")
-    esquema = df_album.schema
     fila_desconocido = spark.createDataFrame([{
-        "nombre": "Desconocido",
-        "artista": "Desconocido",
+        "nombre":     "Desconocido",
+        "artista":    "Desconocido",
         "productora": "Desconocido",
-        "idAlbum": -1
-    }], schema=esquema)
-
+        "idAlbum":    -1
+    }], schema=df_album.schema)
     df_album = fila_desconocido.unionByName(df_album)
 
     df_album.show(5)
 
     print("6. Guardando en Hive (formato Parquet)...")
-    df_album.write \
-        .mode("overwrite") \
-        .format("parquet") \
-        .saveAsTable("dim_album")
-
+    df_album.write.mode("overwrite").format("parquet").saveAsTable("dim_album")
     print("¡Dimensión Álbum completada!")
 
 

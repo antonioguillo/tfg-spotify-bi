@@ -1,5 +1,5 @@
 """
-get_artists_info.py
+get_albums_info.py
 
 Enriquece los artistas con tipo y país usando la API REST de MusicBrainz.
 Usa requests directamente (más estable en Windows que musicbrainzngs).
