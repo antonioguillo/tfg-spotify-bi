@@ -1,0 +1,23 @@
+# Entornos virtuales
+venv/
+.env
+
+# Archivos de caché de Python y PySpark
+__pycache__/
+*.pyc
+.pytest_cache/
+spark-warehouse/
+metastore_db/
+derby.log
+
+# ¡NUNCA SUBIR DATOS! 
+# Ignoramos todo el contenido de la carpeta data, pero mantenemos la estructura
+data/*
+!data/.gitkeep
+
+# Jupyter Notebooks checkpoints (por si usas)
+.ipynb_checkpoints/
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db
