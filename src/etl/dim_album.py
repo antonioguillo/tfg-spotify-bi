@@ -1,15 +1,13 @@
-from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, monotonically_increasing_id, lit, regexp_replace
+from src.utils.spark_session import get_spark_session
+
 
 def procesar_dim_album():
-    spark = SparkSession.builder \
-        .appName("ETL_Dimension_Album") \
-        .getOrCreate()
+    spark = get_spark_session("ETL_Dimension_Album")
 
     print("1. Leyendo álbumes de nuestro dataset...")
     df_base = spark.read.option("header", "true").csv("data/raw/temp_api/canciones_features_kaggle.csv")
 
-    # Extraemos combinaciones únicas de álbum y artista (porque dos artistas pueden tener un álbum que se llame igual)
     df_album = df_base.select(
         col("album").alias("nombre"),
         col("artista")
@@ -17,8 +15,7 @@ def procesar_dim_album():
 
     df_album = df_album.fillna("Desconocido", subset=["nombre", "artista"])
 
-    print("2. Limpiando Emojis como en tu script original...")
-    # Usamos expresiones regulares en PySpark para quitar caracteres raros/emojis
+    print("2. Limpiando emojis y caracteres no ASCII...")
     regex_emojis = r"[^\x00-\x7F]+"
     df_album = df_album.withColumn("nombre", regexp_replace(col("nombre"), regex_emojis, ""))
 
@@ -28,7 +25,7 @@ def procesar_dim_album():
     print("4. Generando IDs autoincrementales...")
     df_album = df_album.withColumn("idAlbum", monotonically_increasing_id())
 
-    print("5. Añadiendo la fila 'Desconocido' (ID -1)...")
+    print("5. Añadiendo la fila 'Desconocido' (ID -1) para integridad referencial...")
     esquema = df_album.schema
     fila_desconocido = spark.createDataFrame([{
         "nombre": "Desconocido",
@@ -41,12 +38,14 @@ def procesar_dim_album():
 
     df_album.show(5)
 
-    ruta_salida = "data/processed_data/dim_album"
-    print(f"Guardando datos en {ruta_salida}...")
-    df_album.write.mode("overwrite").option("header", "true").csv(ruta_salida)
-        
+    print("6. Guardando en Hive (formato Parquet)...")
+    df_album.write \
+        .mode("overwrite") \
+        .format("parquet") \
+        .saveAsTable("dim_album")
+
     print("¡Dimensión Álbum completada!")
-    spark.stop()
+
 
 if __name__ == "__main__":
     procesar_dim_album()

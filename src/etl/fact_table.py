@@ -1,119 +1,133 @@
-from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, lit, when, to_timestamp, date_format, hour, input_file_name, regexp_extract, monotonically_increasing_id
+from pyspark.sql.functions import (
+    col, lit, when, to_timestamp, date_format,
+    hour, input_file_name, regexp_extract, monotonically_increasing_id
+)
+from src.utils.spark_session import get_spark_session
+
+# Columnas de audio features que vienen del CSV de features
+FEATURE_COLS = [
+    "danceability", "energy", "key", "loudness", "mode",
+    "speechiness", "acousticness", "instrumentalness",
+    "liveness", "valence", "tempo"
+]
+
 
 def procesar_tabla_hechos():
-    spark = SparkSession.builder \
-        .appName("ETL_Tabla_Hechos") \
-        .getOrCreate()
+    spark = get_spark_session("ETL_Tabla_Hechos")
 
-    print("1. Cargando las Dimensiones (para cruzar los IDs)...")
-    df_dim_usuario = spark.read.option("header", "true").csv("data/processed_data/dim_usuario")
-    df_dim_cancion = spark.read.option("header", "true").csv("data/processed_data/dim_cancion")
-    df_dim_artista = spark.read.option("header", "true").csv("data/processed_data/dim_artista")
-    df_dim_album = spark.read.option("header", "true").csv("data/processed_data/dim_album")
-    df_dim_hora = spark.read.option("header", "true").csv("data/processed_data/dim_hora")
+    print("1. Cargando dimensiones desde Hive...")
+    df_dim_cancion  = spark.table("dim_cancion")
+    df_dim_artista  = spark.table("dim_artista")
+    df_dim_album    = spark.table("dim_album")
+    df_dim_hora     = spark.table("dim_hora")
+    df_dim_usuario  = spark.table("dim_usuario")
 
-    print("2. Leyendo TODOS los historiales de streaming...")
-    # Leemos todos los historiales de música de todos los usuarios
-    ruta_historiales = "data/raw/raw_data_spotify/*/*/StreamingHistory_music_*.json"
-    df_streaming = spark.read.json(ruta_historiales)
+    print("2. Leyendo historiales de streaming...")
+    ruta = "data/raw/raw_data_spotify/*/*/StreamingHistory_music_*.json"
+    df_streaming = spark.read.json(ruta)
 
-    print("3. Limpieza y extracción temporal...")
-    # Convertimos endTime a timestamp
-    df_streaming = df_streaming.withColumn("endTime", to_timestamp(col("endTime"), "yyyy-MM-dd HH:mm"))
-    
-    # Extraemos el ID inteligente de Fecha (YYYYMMDD)
-    df_streaming = df_streaming.withColumn("idDate", date_format(col("endTime"), "yyyyMMdd").cast("integer"))
-    
-    # Extraemos la hora para cruzar con dim_hora
-    df_streaming = df_streaming.withColumn("hora_reproduccion", hour(col("endTime")))
+    print("3. Limpieza temporal...")
+    df_streaming = df_streaming \
+        .withColumn("endTime", to_timestamp(col("endTime"), "yyyy-MM-dd HH:mm")) \
+        .withColumn("idDate",  date_format(col("endTime"), "yyyyMMdd").cast("integer")) \
+        .withColumn("hora_reproduccion", hour(col("endTime")))
 
-    print("4. Cruzando IDs Temporales...")
-    # Join con Dimensión Hora usando rango de horas (inicio y final)
+    print("4. Join con dim_hora...")
     df_hechos = df_streaming.join(
         df_dim_hora,
-        (df_streaming.hora_reproduccion >= df_dim_hora.inicio) & (df_streaming.hora_reproduccion <= df_dim_hora.final),
+        (df_streaming.hora_reproduccion >= df_dim_hora.inicio) &
+        (df_streaming.hora_reproduccion <= df_dim_hora.final),
         "left"
     ).drop("franjaHoraria", "inicio", "final", "hora_reproduccion")
 
-    print("5. Obteniendo usuario desde la ruta del archivo...")
-    # Truco PySpark: Sacamos el nombre de la carpeta (ej: BEA) de la ruta del archivo
-    df_hechos = df_hechos.withColumn("ruta_archivo", input_file_name())
-    # Extrae el nombre de la carpeta que está justo antes de 'Spotify Account Data'
-    df_hechos = df_hechos.withColumn("nombre_carpeta", regexp_extract(col("ruta_archivo"), r"raw_data_spotify/([^/]+)/", 1))
-    
-    # Cruzamos con dim_usuario para sacar el idUsuario
+    print("5. Extrayendo usuario desde ruta del archivo...")
+    df_hechos = df_hechos \
+        .withColumn("ruta_archivo",   input_file_name()) \
+        .withColumn("nombre_carpeta", regexp_extract(col("ruta_archivo"), r"raw_data_spotify/([^/]+)/", 1))
+
     df_hechos = df_hechos.join(
         df_dim_usuario.select(col("idUsuario"), col("nombre").alias("nombre_carpeta")),
         on="nombre_carpeta",
         how="left"
     ).drop("nombre_carpeta", "ruta_archivo")
-    
-    # Si no encuentra el usuario, le ponemos -1 (Aunque en este TFG deberían estar todos)
+
     df_hechos = df_hechos.fillna(-1, subset=["idUsuario"])
 
-    print("6. Cruzando IDs Musicales (Canción, Artista, Álbum)...")
-    
-    # Left Join con Canción
+    print("6. Join con dimensiones musicales...")
+
+    # Join cancion → obtenemos idCancion y audio features
+    df_features = spark.read \
+        .option("header", "true").option("inferSchema", "true") \
+        .csv("data/raw/temp_api/canciones_features_kaggle.csv")
+
+    # Añadimos features al streaming cruzando por cancion + artista
+    df_hechos = df_hechos.join(
+        df_features.select(
+            col("cancion").alias("trackName"),
+            col("artista").alias("artistName"),
+            col("duration_ms").cast("long").alias("msTotal"),
+            *[col(f).cast("double") for f in FEATURE_COLS]
+        ).dropDuplicates(["trackName", "artistName"]),
+        on=["trackName", "artistName"],
+        how="left"
+    )
+
+    # Join cancion para idCancion
     df_hechos = df_hechos.join(
         df_dim_cancion.select(col("idCancion"), col("titulo").alias("trackName"), col("artista").alias("artistName")),
         on=["trackName", "artistName"],
         how="left"
     )
-    
-    # Left Join con Artista
+
+    # Join artista para idArtista
     df_hechos = df_hechos.join(
         df_dim_artista.select(col("idArtista"), col("nombre").alias("artistName")),
         on="artistName",
         how="left"
     )
-    
-    # Como el JSON original NO tiene el álbum, usamos el idCancion para ir a la dimensión canción
-    # y sacar el nombre del álbum (si lo encontró Kaggle), y luego cruzarlo con dim_album.
-    # Por simplicidad y asegurar rendimiento, aquí lo cruzamos directo si tuvieramos el álbum.
-    # Como no está en el JSON, asumiremos que el álbum va ligado al idCancion, pero para cumplir
-    # tu Estrella, vamos a mapear las que encontramos y las que no, ID -1.
-    
-    # Rellenamos los IDs que no han cruzado (canciones/artistas indie que Kaggle no tenía) con -1
-    df_hechos = df_hechos.fillna(-1, subset=["idCancion", "idArtista"])
-    
-    # Para el idAlbum, como la canción en el historial no trae el álbum, asignamos -1 temporalmente 
-    # (Lo ideal sería extraerlo del dataset de Kaggle antes).
-    df_hechos = df_hechos.withColumn("idAlbum", lit(-1))
 
-    print("7. Generando Métricas (Hechos)...")
-    # Adaptado de tu tablaHechos.py original
-    df_hechos = df_hechos.withColumnRenamed("msPlayed", "msEscuchados")
-    df_hechos = df_hechos.withColumn("cancionesEscuchadas", lit(1))
-    
-    # Si tuvieras duration_ms de Kaggle podrías calcular msNoEscuchados.
-    # Como en el JSON básico no viene, dejamos la métrica preparada o a 0.
-    df_hechos = df_hechos.withColumn("msNoEscuchados", lit(0))
+    # Join album para idAlbum
+    df_hechos = df_hechos.join(
+        df_dim_album.select(col("idAlbum"), col("nombre").alias("album_nombre"), col("artista").alias("artistName")),
+        on="artistName",
+        how="left"
+    )
 
-    # Seleccionamos solo las columnas finales para la base de datos
-    df_hechos_final = df_hechos.select(
+    df_hechos = df_hechos.fillna(-1, subset=["idCancion", "idArtista", "idAlbum"])
+    df_hechos = df_hechos.fillna(0,  subset=["msTotal"] + FEATURE_COLS)
+
+    print("7. Calculando métricas...")
+    df_hechos = df_hechos \
+        .withColumnRenamed("msPlayed", "msEscuchados") \
+        .withColumn("msNoEscuchados",      col("msTotal") - col("msEscuchados")) \
+        .withColumn("cancionesEscuchadas", lit(1))
+
+    # msNoEscuchados no puede ser negativo (canción skipeada después del total)
+    df_hechos = df_hechos.withColumn("msNoEscuchados",
+        when(col("msNoEscuchados") < 0, lit(0)).otherwise(col("msNoEscuchados"))
+    )
+
+    print("8. Seleccionando columnas finales...")
+    df_final = df_hechos.select(
         col("msEscuchados"),
         col("msNoEscuchados"),
         col("cancionesEscuchadas"),
+        col("msTotal"),
+        *[col(f) for f in FEATURE_COLS],
         col("idCancion"),
         col("idArtista"),
-        col("idAlbum"),
-        col("idUsuario"),
-        col("idDate"),
-        col("idHora")
-    )
+        col("idAlbum").alias("IDAlbum"),
+        col("idHora").alias("IDHora"),
+        col("idDate").alias("IDDate"),
+        col("idUsuario").alias("IDUsuario")
+    ).withColumn("idhechos_historial", monotonically_increasing_id())
 
-    # Añadimos la Primary Key de la tabla de hechos
-    df_hechos_final = df_hechos_final.withColumn("idhechos_historial", monotonically_increasing_id())
+    df_final.show(10)
 
-    df_hechos_final.show(10)
+    print("9. Guardando en Hive (Parquet)...")
+    df_final.write.mode("overwrite").format("parquet").saveAsTable("fact_historial")
+    print("¡Tabla de Hechos completada!")
 
-    ruta_salida = "data/processed_data/tabla_hechos"
-    print(f"Guardando Tabla de Hechos en {ruta_salida}...")
-    df_hechos_final.write.mode("overwrite").option("header", "true").csv(ruta_salida)
-        
-    print("¡Tabla de Hechos completada con éxito!")
-    spark.stop()
 
 if __name__ == "__main__":
     procesar_tabla_hechos()

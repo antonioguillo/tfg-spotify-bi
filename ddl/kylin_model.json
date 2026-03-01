@@ -1,0 +1,276 @@
+{
+  "model_name": "spotify_bi_model",
+  "description": "Modelo dimensional para análisis del historial de reproducción de Spotify. Esquema estrella con fact_historial como tabla central.",
+  "fact_table": "SPOTIFY_DW.FACT_HISTORIAL",
+
+  "lookups": [
+    {
+      "table": "SPOTIFY_DW.DIM_CANCION",
+      "join": {
+        "type": "left",
+        "foreign_key": ["IDCANCION"],
+        "primary_key": ["IDCANCION"]
+      }
+    },
+    {
+      "table": "SPOTIFY_DW.DIM_ARTISTA",
+      "join": {
+        "type": "left",
+        "foreign_key": ["IDARTISTA"],
+        "primary_key": ["IDARTISTA"]
+      }
+    },
+    {
+      "table": "SPOTIFY_DW.DIM_ALBUM",
+      "join": {
+        "type": "left",
+        "foreign_key": ["IDALBUM"],
+        "primary_key": ["IDALBUM"]
+      }
+    },
+    {
+      "table": "SPOTIFY_DW.DIM_FECHA",
+      "join": {
+        "type": "left",
+        "foreign_key": ["IDDATE"],
+        "primary_key": ["IDDATE"]
+      }
+    },
+    {
+      "table": "SPOTIFY_DW.DIM_HORA",
+      "join": {
+        "type": "left",
+        "foreign_key": ["IDHORA"],
+        "primary_key": ["IDHORA"]
+      }
+    },
+    {
+      "table": "SPOTIFY_DW.DIM_USUARIO",
+      "join": {
+        "type": "left",
+        "foreign_key": ["IDUSUARIO"],
+        "primary_key": ["IDUSUARIO"]
+      }
+    }
+  ],
+
+  "dimensions": [
+    {
+      "table": "SPOTIFY_DW.DIM_CANCION",
+      "columns": ["TITULO", "ALBUM", "ARTISTA", "RANGODURACIÓN", "PLAYLIST"]
+    },
+    {
+      "table": "SPOTIFY_DW.DIM_ARTISTA",
+      "columns": ["NOMBRE", "TIPO", "PAIS", "GENERO"]
+    },
+    {
+      "table": "SPOTIFY_DW.DIM_ALBUM",
+      "columns": ["NOMBRE", "ARTISTA", "PRODUCTORA"]
+    },
+    {
+      "table": "SPOTIFY_DW.DIM_FECHA",
+      "columns": ["FECHASTRING", "DIA", "MES", "AÑO", "MESSTRING", "ESTACION", "FESTIVO", "FINDE"]
+    },
+    {
+      "table": "SPOTIFY_DW.DIM_HORA",
+      "columns": ["FRANJAHORARIA", "INICIO", "FINAL"]
+    },
+    {
+      "table": "SPOTIFY_DW.DIM_USUARIO",
+      "columns": ["NOMBRE", "GENERACION", "PAIS", "TIPOUSUARIO"]
+    }
+  ],
+
+  "metrics": [
+    {
+      "name": "MSESCUCHADOS",
+      "table": "SPOTIFY_DW.FACT_HISTORIAL",
+      "column": "MSESCUCHADOS",
+      "function": "SUM",
+      "comment": "Total de milisegundos reproducidos"
+    },
+    {
+      "name": "MSNOESCUCHADOS",
+      "table": "SPOTIFY_DW.FACT_HISTORIAL",
+      "column": "MSNOESCUCHADOS",
+      "function": "SUM",
+      "comment": "Total de milisegundos no reproducidos (skips)"
+    },
+    {
+      "name": "MSTOTAL",
+      "table": "SPOTIFY_DW.FACT_HISTORIAL",
+      "column": "MSTOTAL",
+      "function": "SUM",
+      "comment": "Duración total de canciones reproducidas"
+    },
+    {
+      "name": "CANCIONESESCUCHADAS",
+      "table": "SPOTIFY_DW.FACT_HISTORIAL",
+      "column": "CANCIONESESCUCHADAS",
+      "function": "SUM",
+      "comment": "Número total de reproducciones"
+    },
+    {
+      "name": "REPRODUCCIONES_DISTINTAS",
+      "table": "SPOTIFY_DW.FACT_HISTORIAL",
+      "column": "IDCANCION",
+      "function": "COUNT_DISTINCT",
+      "comment": "Número de canciones únicas escuchadas"
+    },
+    {
+      "name": "AVG_DANCEABILITY",
+      "table": "SPOTIFY_DW.FACT_HISTORIAL",
+      "column": "DANCEABILITY",
+      "function": "AVG",
+      "comment": "Bailabilidad media de las canciones escuchadas"
+    },
+    {
+      "name": "AVG_ENERGY",
+      "table": "SPOTIFY_DW.FACT_HISTORIAL",
+      "column": "ENERGY",
+      "function": "AVG",
+      "comment": "Energía media de las canciones escuchadas"
+    },
+    {
+      "name": "AVG_VALENCE",
+      "table": "SPOTIFY_DW.FACT_HISTORIAL",
+      "column": "VALENCE",
+      "function": "AVG",
+      "comment": "Positividad musical media (mood del oyente)"
+    },
+    {
+      "name": "AVG_ACOUSTICNESS",
+      "table": "SPOTIFY_DW.FACT_HISTORIAL",
+      "column": "ACOUSTICNESS",
+      "function": "AVG",
+      "comment": "Nivel acústico medio"
+    },
+    {
+      "name": "AVG_TEMPO",
+      "table": "SPOTIFY_DW.FACT_HISTORIAL",
+      "column": "TEMPO",
+      "function": "AVG",
+      "comment": "Tempo medio en BPM"
+    },
+    {
+      "name": "AVG_SPEECHINESS",
+      "table": "SPOTIFY_DW.FACT_HISTORIAL",
+      "column": "SPEECHINESS",
+      "function": "AVG",
+      "comment": "Presencia media de voz hablada"
+    },
+    {
+      "name": "AVG_INSTRUMENTALNESS",
+      "table": "SPOTIFY_DW.FACT_HISTORIAL",
+      "column": "INSTRUMENTALNESS",
+      "function": "AVG",
+      "comment": "Nivel instrumental medio"
+    },
+    {
+      "name": "AVG_LIVENESS",
+      "table": "SPOTIFY_DW.FACT_HISTORIAL",
+      "column": "LIVENESS",
+      "function": "AVG",
+      "comment": "Probabilidad media de ser directo en vivo"
+    }
+  ],
+
+  "cube_name": "spotify_bi_cube",
+  "cube_description": "Cubo OLAP para análisis multidimensional del historial de reproducción de Spotify",
+
+  "aggregation_groups": [
+    {
+      "description": "Análisis temporal — hábitos de escucha por tiempo",
+      "includes": [
+        "DIM_FECHA.AÑO",
+        "DIM_FECHA.MES",
+        "DIM_FECHA.MESSTRING",
+        "DIM_FECHA.DIA",
+        "DIM_FECHA.ESTACION",
+        "DIM_FECHA.FINDE",
+        "DIM_FECHA.FESTIVO",
+        "DIM_HORA.FRANJAHORARIA"
+      ],
+      "select_rule": {
+        "hierarchy_dimensions": [
+          ["DIM_FECHA.AÑO", "DIM_FECHA.MES", "DIM_FECHA.DIA"]
+        ]
+      }
+    },
+    {
+      "description": "Análisis musical — canciones, artistas, álbumes y géneros",
+      "includes": [
+        "DIM_ARTISTA.NOMBRE",
+        "DIM_ARTISTA.GENERO",
+        "DIM_ARTISTA.PAIS",
+        "DIM_ARTISTA.TIPO",
+        "DIM_ALBUM.NOMBRE",
+        "DIM_ALBUM.PRODUCTORA",
+        "DIM_CANCION.TITULO",
+        "DIM_CANCION.RANGODURACIÓN",
+        "DIM_CANCION.PLAYLIST"
+      ],
+      "select_rule": {
+        "hierarchy_dimensions": [
+          ["DIM_ARTISTA.NOMBRE", "DIM_ALBUM.NOMBRE", "DIM_CANCION.TITULO"]
+        ]
+      }
+    },
+    {
+      "description": "Análisis de usuarios",
+      "includes": [
+        "DIM_USUARIO.NOMBRE",
+        "DIM_USUARIO.GENERACION",
+        "DIM_USUARIO.PAIS",
+        "DIM_USUARIO.TIPOUSUARIO"
+      ]
+    },
+    {
+      "description": "Cruce temporal + musical — para KPIs combinados",
+      "includes": [
+        "DIM_FECHA.AÑO",
+        "DIM_FECHA.MES",
+        "DIM_FECHA.ESTACION",
+        "DIM_FECHA.FINDE",
+        "DIM_HORA.FRANJAHORARIA",
+        "DIM_ARTISTA.GENERO",
+        "DIM_ARTISTA.NOMBRE",
+        "DIM_USUARIO.NOMBRE"
+      ]
+    }
+  ],
+
+  "rowkeys": [
+    {
+      "column": "DIM_FECHA.IDDATE",
+      "encoding": "integer"
+    },
+    {
+      "column": "DIM_HORA.IDHORA",
+      "encoding": "integer"
+    },
+    {
+      "column": "DIM_ARTISTA.IDARTISTA",
+      "encoding": "integer"
+    },
+    {
+      "column": "DIM_ALBUM.IDALBUM",
+      "encoding": "integer"
+    },
+    {
+      "column": "DIM_CANCION.IDCANCION",
+      "encoding": "integer"
+    },
+    {
+      "column": "DIM_USUARIO.IDUSUARIO",
+      "encoding": "integer"
+    }
+  ],
+
+  "partition_date_column": "DIM_FECHA.FECHASTRING",
+  "partition_date_format": "yyyy-MM-dd",
+
+  "build_type": "FULL_BUILD",
+
+  "notify_list": []
+}

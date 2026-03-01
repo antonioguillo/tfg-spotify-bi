@@ -1,80 +1,58 @@
-from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, monotonically_increasing_id, lit
-from pyspark.sql.types import StructType, StructField, StringType, DoubleType, LongType
+from pyspark.sql.functions import col, monotonically_increasing_id, lit, when
+from src.utils.spark_session import get_spark_session
+
 
 def procesar_dim_cancion():
-    spark = SparkSession.builder \
-        .appName("ETL_Dimension_Cancion") \
-        .getOrCreate()
+    spark = get_spark_session("ETL_Dimension_Cancion")
 
-    # 1. Leemos el CSV enriquecido que sacamos de Kaggle
-    ruta_entrada = "data/raw/temp_api/canciones_features_kaggle.csv"
-    print(f"Leyendo dataset de canciones: {ruta_entrada}...")
-    
-    df_cancion = spark.read \
-        .option("header", "true") \
-        .option("inferSchema", "true") \
-        .csv(ruta_entrada)
+    print("1. Leyendo dataset de canciones...")
+    df = spark.read.option("header", "true").option("inferSchema", "true") \
+              .csv("data/raw/temp_api/canciones_features_kaggle.csv")
 
-    # 2. Limpieza y renombramiento al estilo de tu canciones.py original
-    print("Aplicando transformaciones...")
-    df_cancion = df_cancion.select(
+    print("2. Seleccionando y limpiando columnas...")
+    df_cancion = df.select(
         col("cancion").alias("titulo"),
         col("artista"),
         col("album"),
-        col("danceability").cast("double"),
-        col("energy").cast("double"),
-        col("tempo").cast("double"),
-        col("valence").cast("double"),
-        col("acousticness").cast("double"),
-        col("speechiness").cast("double")
-    )
+        col("duration_ms").cast("double")
+    ).dropDuplicates(["titulo", "artista"])
 
-    # Eliminamos duplicados por si acaso
-    df_cancion = df_cancion.dropDuplicates(["titulo", "artista"])
-
-    # Rellenamos los valores nulos (las canciones que Kaggle no encontró)
-    df_cancion = df_cancion.fillna(0.0, subset=["danceability", "energy", "tempo", "valence", "acousticness", "speechiness"])
     df_cancion = df_cancion.fillna("Desconocido", subset=["titulo", "artista", "album"])
 
-    # 3. Añadimos el ID autoincremental de PySpark
+    print("3. Calculando rangoDuracion...")
+    df_cancion = df_cancion.withColumn("duration_min", col("duration_ms") / 60000)
+    df_cancion = df_cancion.withColumn("rangoDuracion",
+        when(col("duration_min") <= 2,  "0-2 min")
+        .when(col("duration_min") <= 4,  "2-4 min")
+        .when(col("duration_min") <= 7,  "4-7 min")
+        .when(col("duration_min") <= 11, "7-11 min")
+        .otherwise("11+ min")
+    ).drop("duration_min", "duration_ms")
+
+    print("4. Añadiendo columna playlist (False por defecto)...")
+    # En una mejora futura se cruzaría con los JSONs de playlist del usuario
+    df_cancion = df_cancion.withColumn("playlist", lit(False))
+
+    print("5. Generando IDs...")
     df_cancion = df_cancion.withColumn("idCancion", monotonically_increasing_id())
 
-    # 4. CREACIÓN DE LA FILA "DESCONOCIDO" (ID -1)
-    # Tu idea original en Pandas, adaptada a PySpark
-    print("Añadiendo fila 'Desconocido' (ID -1) para integridad referencial...")
-    
-    esquema = df_cancion.schema
+    print("6. Añadiendo fila 'Desconocido' (ID -1)...")
     fila_desconocido = spark.createDataFrame([{
-        "titulo": "Desconocido",
-        "artista": "Desconocido",
-        "album": "Desconocido",
-        "danceability": 0.0,
-        "energy": 0.0,
-        "tempo": 0.0,
-        "valence": 0.0,
-        "acousticness": 0.0,
-        "speechiness": 0.0,
-        "idCancion": -1
-    }], schema=esquema)
-
-    # Unimos nuestro DataFrame con la fila de Desconocido
+        "titulo":        "Desconocido",
+        "artista":       "Desconocido",
+        "album":         "Desconocido",
+        "rangoDuracion": "Desconocido",
+        "playlist":      False,
+        "idCancion":     -1
+    }], schema=df_cancion.schema)
     df_cancion = fila_desconocido.unionByName(df_cancion)
 
-    # Mostramos una muestra
     df_cancion.show(5)
 
-    # 5. Guardado en formato Parquet (El estándar ultrarrápido de Big Data)
-    ruta_salida = "data/processed_data/dim_cancion"
-    print(f"Guardando datos en {ruta_salida}...")
-    
-    df_cancion.write \
-        .mode("overwrite") \
-        .option("header", "true") \
-        .csv(ruta_salida)
-        
-    print("¡Dimensión Canción completada con éxito!")
-    spark.stop()
+    print("7. Guardando en Hive (Parquet)...")
+    df_cancion.write.mode("overwrite").format("parquet").saveAsTable("dim_cancion")
+    print("¡Dimensión Canción completada!")
+
 
 if __name__ == "__main__":
     procesar_dim_cancion()

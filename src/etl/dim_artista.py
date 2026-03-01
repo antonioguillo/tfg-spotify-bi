@@ -1,51 +1,40 @@
-from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, monotonically_increasing_id, lit
+from src.utils.spark_session import get_spark_session
+
 
 def procesar_dim_artista():
-    spark = SparkSession.builder \
-        .appName("ETL_Dimension_Artista") \
-        .getOrCreate()
+    spark = get_spark_session("ETL_Dimension_Artista")
 
-    print("1. Leyendo artistas únicos de nuestro dataset...")
-    # Leemos el dataset que cruzamos en pasos anteriores
+    print("1. Leyendo artistas únicos del dataset...")
     df_base = spark.read.option("header", "true").csv("data/raw/temp_api/canciones_features_kaggle.csv")
 
-    # Extraemos solo los artistas y quitamos duplicados
     df_artista = df_base.select(col("artista").alias("nombre")).dropDuplicates(["nombre"])
-    
-    # Rellenamos nulos por si acaso
     df_artista = df_artista.fillna("Desconocido", subset=["nombre"])
 
-    print("2. Añadiendo columnas de país, tipo y género (Placeholder)...")
-    # Como en tu script original, preparamos las columnas. 
-    # (Si luego cruzas con MusicBrainz, actualizarías estas columnas)
-    df_artista = df_artista.withColumn("tipo", lit("Desconocido")) \
-                           .withColumn("pais", lit("Desconocido")) \
+    print("2. Añadiendo columnas de enriquecimiento...")
+    df_artista = df_artista.withColumn("tipo",   lit("Desconocido")) \
+                           .withColumn("pais",   lit("Desconocido")) \
                            .withColumn("genero", lit("Desconocido"))
 
-    print("3. Generando IDs autoincrementales...")
+    print("3. Generando IDs...")
     df_artista = df_artista.withColumn("idArtista", monotonically_increasing_id())
 
-    print("4. Añadiendo la fila 'Desconocido' (ID -1)...")
-    esquema = df_artista.schema
+    print("4. Añadiendo fila 'Desconocido' (ID -1)...")
     fila_desconocido = spark.createDataFrame([{
-        "nombre": "Desconocido",
-        "tipo": "Desconocido",
-        "pais": "Desconocido",
-        "genero": "Desconocido",
+        "nombre":    "Desconocido",
+        "tipo":      "Desconocido",
+        "pais":      "Desconocido",
+        "genero":    "Desconocido",
         "idArtista": -1
-    }], schema=esquema)
-
+    }], schema=df_artista.schema)
     df_artista = fila_desconocido.unionByName(df_artista)
 
     df_artista.show(5)
 
-    ruta_salida = "data/processed_data/dim_artista"
-    print(f"Guardando datos en {ruta_salida}...")
-    df_artista.write.mode("overwrite").option("header", "true").csv(ruta_salida)
-        
+    print("5. Guardando en Hive (Parquet)...")
+    df_artista.write.mode("overwrite").format("parquet").saveAsTable("dim_artista")
     print("¡Dimensión Artista completada!")
-    spark.stop()
+
 
 if __name__ == "__main__":
     procesar_dim_artista()

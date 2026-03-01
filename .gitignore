@@ -1,6 +1,9 @@
 # Entornos virtuales
 venv/
+
+# Variables de entorno - NUNCA SUBIR
 .env
+.cache
 
 # Archivos de caché de Python y PySpark
 __pycache__/
@@ -11,13 +14,20 @@ metastore_db/
 derby.log
 
 # ¡NUNCA SUBIR DATOS! 
-# Ignoramos todo el contenido de la carpeta data, pero mantenemos la estructura
 data/*
 !data/.gitkeep
 
-# Jupyter Notebooks checkpoints (por si usas)
+# Jupyter Notebooks checkpoints
 .ipynb_checkpoints/
 
 # Archivos del sistema
 .DS_Store
 Thumbs.db
+
+
+
+
+
+
+
+
