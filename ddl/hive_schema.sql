@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS dim_fecha (
     idDate          INT         COMMENT 'Smart Key formato YYYYMMDD (ej: 20230815).',
     dia             INT         COMMENT 'Dia del mes (1-31).',
     mes             INT         COMMENT 'Mes del ano (1-12).',
-    año             INT         COMMENT 'Ano (ej: 2023).',
+    anio             INT         COMMENT 'Ano (ej: 2023).',
     festivo         BOOLEAN     COMMENT 'Indica si el dia es festivo en Espana.',
     finde           BOOLEAN     COMMENT 'Indica si el dia es sabado o domingo.',
     fechaString     STRING      COMMENT 'Fecha en formato texto YYYY-MM-DD.',

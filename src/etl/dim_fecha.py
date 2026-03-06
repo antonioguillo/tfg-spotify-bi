@@ -23,7 +23,7 @@ def procesar_dim_fecha():
     df_date = df_date \
         .withColumn("dia",         dayofmonth(col("fecha"))) \
         .withColumn("mes",         month(col("fecha"))) \
-        .withColumn("año",         year(col("fecha"))) \
+        .withColumn("anio",         year(col("fecha"))) \
         .withColumn("mesString",   date_format(col("fecha"), "MMMM")) \
         .withColumn("fechaString", date_format(col("fecha"), "yyyy-MM-dd"))
 
@@ -64,7 +64,7 @@ def procesar_dim_fecha():
     )
 
     df_date = df_date.select(
-        "idDate", "dia", "mes", "año", "festivo",
+        "idDate", "dia", "mes", "anio", "festivo",
         "finde", "fechaString", "mesString", "estacion"
     )
 

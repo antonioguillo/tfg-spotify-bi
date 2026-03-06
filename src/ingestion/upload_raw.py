@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-upload_to_bronze.py
+upload_raw.py
 
 Sube todos los datos crudos a HDFS replicando la estructura local.
 
@@ -25,8 +25,8 @@ Estructura en HDFS:
         └── albums_info.csv
 
 Uso:
-    python src/ingestion/upload_to_bronze.py
-    python src/ingestion/upload_to_bronze.py --force   # sobreescribe todo
+    python src/ingestion/upload_raw.py
+    python src/ingestion/upload_raw.py --force   # sobreescribe todo
 """
 import os
 import sys
@@ -44,11 +44,20 @@ HDFS_BASE  = os.getenv("HDFS_BASE_PATH", "/user/spotify_bi/bronze")
 LOCAL_BASE = Path("data/raw")
 
 # Archivos de usuario que nos interesan (el resto los ignoramos)
-ARCHIVOS_USUARIO = {
+ARCHIVOS_USUARIO = [
     "StreamingHistory_music_*.json",
     "Playlist1.json",
-    "Userdata.json"
-}
+    "Userdata.json",
+]
+
+# Posibles nombres de la subcarpeta de datos de Spotify
+# (varía según cuándo se descargó el paquete GDPR)
+SUBCARPETAS_SPOTIFY = [
+    "SpotifyAccountData",
+    "Spotify Account Data",
+    "MyData",
+]
+
 
 # ============================================================
 # HELPERS
@@ -71,21 +80,47 @@ def hdfs_exists(ruta: str) -> bool:
 
 
 def subir_archivo(local: Path, hdfs_dest: str, force: bool) -> bool:
-    """Sube un archivo a HDFS. Devuelve True si OK."""
+    """
+    Sube un archivo a HDFS. Devuelve True si OK.
+
+    IMPORTANTE: Usa resolve() para convertir a ruta absoluta.
+    HDFS CLI (Java) no maneja bien rutas relativas ni rutas
+    con espacios en WSL. La ruta absoluta resuelve ambos problemas.
+    """
     hdfs_ruta = f"{hdfs_dest}/{local.name}"
 
     if not force and hdfs_exists(hdfs_ruta):
         print(f"    [SKIP] {local.name}")
         return True
 
-    args = ["-put", "-f", str(local), hdfs_dest] if force else ["-put", str(local), hdfs_dest]
-    code, _, err = hdfs("-put", *([ "-f"] if force else []), str(local), hdfs_dest)
+    # resolve() convierte a ruta absoluta — clave para HDFS en WSL
+    ruta_absoluta = str(local.resolve())
+
+    args = ["-put"]
+    if force:
+        args.append("-f")
+    args.extend([ruta_absoluta, hdfs_dest])
+
+    code, _, err = hdfs(*args)
     if code != 0:
         print(f"    [ERROR] {local.name}: {err}")
         return False
 
     print(f"    [OK] {local.name}")
     return True
+
+
+def encontrar_fuente_usuario(usuario_dir: Path) -> Path:
+    """
+    Busca la subcarpeta de datos dentro del directorio de un usuario.
+    Spotify cambia el nombre según la versión del paquete GDPR.
+    Si no hay subcarpeta, asume que los archivos están directamente.
+    """
+    for nombre in SUBCARPETAS_SPOTIFY:
+        subcarpeta = usuario_dir / nombre
+        if subcarpeta.exists():
+            return subcarpeta
+    return usuario_dir
 
 
 # ============================================================
@@ -103,17 +138,15 @@ def subir_usuarios(force: bool) -> tuple[int, int]:
 
     # Cada subcarpeta es un usuario
     usuarios = [d for d in carpeta_usuarios.iterdir() if d.is_dir()]
-    print(f"  Usuarios encontrados: {[u.name for u in usuarios]}")
+    print(f"  Usuarios encontrados: {[u.name for u in sorted(usuarios)]}")
 
     for usuario_dir in sorted(usuarios):
         nombre_usuario = usuario_dir.name
-        # Buscar la carpeta "Spotify Account Data" dentro si existe
-        spotify_data = usuario_dir / "Spotify Account Data"
-        fuente = spotify_data if spotify_data.exists() else usuario_dir
+        fuente = encontrar_fuente_usuario(usuario_dir)
 
         hdfs_usuario = f"{HDFS_BASE}/usuarios/{nombre_usuario}"
         hdfs_mkdir(hdfs_usuario)
-        print(f"\n  Usuario: {nombre_usuario}")
+        print(f"\n  Usuario: {nombre_usuario} (fuente: {fuente.name})")
 
         # Subir solo los archivos relevantes
         archivos_subidos = 0
@@ -138,17 +171,33 @@ def subir_features(force: bool) -> tuple[int, int]:
     hdfs_features = f"{HDFS_BASE}/features"
     hdfs_mkdir(hdfs_features)
 
-    archivos = [
-        LOCAL_BASE / "features_historico.csv",
-        *sorted(LOCAL_BASE.glob("features_kaggle*.csv")),
-        LOCAL_BASE / "temp_api" / "canciones_features_kaggle.csv",
-        LOCAL_BASE / "temp_api" / "canciones_unicas.json",
-    ]
+    # Buscar features en ambas ubicaciones posibles
+    archivos = []
 
+    # Ubicación principal: data/raw/features/
+    features_dir = LOCAL_BASE / "features"
+    if features_dir.exists():
+        archivos.append(features_dir / "features_historico.csv")
+        archivos.extend(sorted(features_dir.glob("features_kaggle*.csv")))
+        archivos.append(features_dir / "canciones_features_kaggle.csv")
+
+    # Ubicación alternativa: data/raw/ directamente
+    if not features_dir.exists():
+        archivos.append(LOCAL_BASE / "features_historico.csv")
+        archivos.extend(sorted(LOCAL_BASE.glob("features_kaggle*.csv")))
+
+    # Siempre buscar también en temp_api
+    archivos.append(LOCAL_BASE / "temp_api" / "canciones_features_kaggle.csv")
+    archivos.append(LOCAL_BASE / "temp_api" / "canciones_unicas.json")
+
+    # Deduplicar por nombre (preferir la primera encontrada)
+    vistos = set()
     for archivo in archivos:
-        if not archivo.exists():
-            print(f"    [SKIP] No existe localmente: {archivo.name}")
+        if not archivo.exists() or archivo.name in vistos:
+            if not archivo.exists():
+                print(f"    [SKIP] No existe: {archivo.name}")
             continue
+        vistos.add(archivo.name)
         resultado = subir_archivo(archivo, hdfs_features, force)
         if resultado:
             ok += 1
@@ -194,9 +243,9 @@ def upload_to_bronze(force: bool = False):
 
     # Verificar HDFS activo
     print("\nVerificando HDFS...")
-    code, _, err = hdfs("-ls", "/")
+    code, _, err_msg = hdfs("-ls", "/")
     if code != 0:
-        print(f"[ERROR] HDFS no responde: {err}")
+        print(f"[ERROR] HDFS no responde: {err_msg}")
         print("Ejecuta: start-dfs.sh")
         sys.exit(1)
     print("  HDFS activo ✓")
@@ -205,7 +254,7 @@ def upload_to_bronze(force: bool = False):
 
     # 1. Usuarios
     print(f"\n{'─'*60}")
-    print("  1. USUARIOS (StreamingHistory + Userdata)")
+    print("  1. USUARIOS (StreamingHistory + Playlist + Userdata)")
     print(f"{'─'*60}")
     ok, err = subir_usuarios(force)
     total_ok += ok
