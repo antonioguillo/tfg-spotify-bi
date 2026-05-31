@@ -1,3 +1,20 @@
+"""
+dim_artista.py
+
+ETL de la dimensión Artista. Fuentes:
+  - canciones_features_kaggle.csv (HDFS Bronze): lista de artistas únicos.
+  - artistas_info.csv (HDFS Bronze): tipo (Solista/Grupo) y país, obtenidos
+    de la API REST de MusicBrainz.
+  - artistas_generos.csv (HDFS Bronze): género musical principal, obtenido
+    de Every Noise at Once.
+
+Pasos principales:
+  1. Extraer artistas únicos del CSV de features.
+  2. Cruzar con MusicBrainz (LEFT JOIN por nombre) para tipo y país.
+  3. Cruzar con Every Noise at Once (LEFT JOIN por nombre) para género.
+  4. Generar ID autoincremental + fila centinela Desconocido (ID=-1).
+  5. Persistir en Hive (formato Parquet).
+"""
 import os
 from pyspark.sql.functions import col, monotonically_increasing_id, lit
 from src.utils.spark_session import get_spark_session

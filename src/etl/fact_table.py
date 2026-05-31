@@ -1,3 +1,36 @@
+"""
+fact_table.py
+
+ETL de la tabla de hechos fact_historial. Grano: una reproducción (stream)
+de Spotify. Cada fila representa un evento de escucha de un usuario.
+
+Fuentes:
+  - StreamingHistory_music_*.json por usuario (HDFS Bronze): evento de escucha.
+  - canciones_features_kaggle.csv (HDFS Bronze): audio features y duración.
+  - Dimensiones ya cargadas en Hive (Silver): dim_cancion, dim_artista,
+    dim_album, dim_hora, dim_usuario.
+
+Estrategia de joins:
+  - Todos los joins con dimensiones son LEFT JOIN para preservar eventos
+    aunque la dimensión no tenga un registro coincidente. En ese caso la FK
+    queda a -1 (registro centinela "Desconocido") gracias al fillna posterior.
+  - El join con dim_cancion y con features usa la clave compuesta
+    (trackName + artistName) para evitar colisiones entre canciones homónimas
+    de artistas distintos.
+  - El usuario se identifica extrayendo el nombre de la carpeta HDFS con la
+    regex r"usuarios/([^/]+)/" (grupo 1) y cruzando con dim_usuario.nombre.
+
+Estrategia de datos faltantes:
+  - FKs de dimensiones nulas → fillna(-1): apuntan al registro centinela.
+  - msTotal nulo → fillna(0): imposible calcular msNoEscuchados sin duración.
+  - Audio features nulas → fillna(0): imputan el valor mínimo de la escala
+    (0.0–1.0 para la mayoría de features). Los registros imputados pueden
+    filtrarse en análisis con WHERE feature > 0 si se prefiere excluirlos.
+
+Campos derivados clave:
+  - msNoEscuchados = msTotal - msEscuchados (>= 0 por clamping).
+  - cancionesEscuchadas = lit(1): contador para agregar por SUM en el cubo OLAP.
+"""
 from pyspark.sql.functions import (
     col, lit, when, to_timestamp, date_format,
     hour, input_file_name, regexp_extract, monotonically_increasing_id
@@ -146,16 +179,38 @@ def procesar_tabla_hechos():
     # ==========================================================
     print("10. Rellenando FKs nulas...")
     df_hechos = df_hechos.fillna(-1, subset=["idCancion", "idArtista", "idAlbum"])
-    df_hechos = df_hechos.fillna(0,  subset=["msTotal"] + FEATURE_COLS)
 
     # ==========================================================
-    # 11. Calcular metricas de escucha
+    # 10b. Imputar nulos en audio features y msTotal
+    #
+    # El join LEFT con el CSV de features deja NULLs cuando una
+    # canción del historial no aparece en el dataset de Kaggle.
+    # Estrategia de imputación: valor 0 (extremo inferior de la
+    # escala 0.0–1.0). Alternativa más conservadora sería usar la
+    # media del dataset, pero 0 es preferible aquí porque es
+    # interpretable (ausencia de la característica) y facilita el
+    # filtrado posterior (WHERE feature > 0 excluye imputados).
+    # Los registros afectados son rastreables: son los que tienen
+    # idCancion == -1 (canción desconocida en el catálogo).
+    # ==========================================================
+    print("10b. Imputando nulos en audio features (estrategia: 0)...")
+    n_nulos_features = df_hechos.filter(col("danceability").isNull()).count()
+    print(f"    Filas con audio features nulas: {n_nulos_features}")
+    df_hechos = df_hechos.fillna(0, subset=["msTotal"] + FEATURE_COLS)
+
+    # ==========================================================
+    # 11. Calcular métricas de escucha
+    #
+    # cancionesEscuchadas = lit(1): cada fila representa exactamente
+    # una reproducción. Al agregar con SUM en Kylin se obtiene el
+    # total de reproducciones para cualquier combinación de dimensiones
+    # sin necesidad de COUNT(*), lo que simplifica los cubos OLAP.
     # ==========================================================
     print("11. Calculando metricas...")
     df_hechos = df_hechos \
         .withColumnRenamed("msPlayed", "msEscuchados") \
         .withColumn("msNoEscuchados",      col("msTotal") - col("msEscuchados")) \
-        .withColumn("cancionesEscuchadas", lit(1))
+        .withColumn("cancionesEscuchadas", lit(1).alias("cancionesEscuchadas"))
 
     df_hechos = df_hechos.withColumn("msNoEscuchados",
         when(col("msNoEscuchados") < 0, lit(0)).otherwise(col("msNoEscuchados"))

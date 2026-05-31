@@ -36,7 +36,8 @@ CREATE TABLE IF NOT EXISTS dim_album (
     idAlbum         INT         COMMENT 'Clave primaria. -1 para registros desconocidos.',
     nombre          STRING      COMMENT 'Nombre del album.',
     artista         STRING      COMMENT 'Artista del album.',
-    productora      STRING      COMMENT 'Productora o sello discografico.'
+    productora      STRING      COMMENT 'Productora o sello discografico.',
+    anyo            INT         COMMENT 'Anyo de publicacion del album. Permite agrupar por decadas (FLOOR(anyo/10)*10). -1 si desconocido.'
 )
 COMMENT 'Dimension que describe los albumes del historial de reproduccion.'
 STORED AS PARQUET;
@@ -50,7 +51,7 @@ CREATE TABLE IF NOT EXISTS dim_cancion (
     titulo          STRING      COMMENT 'Titulo de la cancion.',
     album           STRING      COMMENT 'Album al que pertenece.',
     artista         STRING      COMMENT 'Artista de la cancion.',
-    playlist        BOOLEAN     COMMENT 'Indica si la cancion esta en alguna playlist del usuario.',
+    playlist        TINYINT     COMMENT 'Indica si la cancion esta en alguna playlist del usuario (1=si, 0=no). TINYINT en lugar de BOOLEAN por compatibilidad con todas las versiones de Hive y con Apache Kylin.',
     rangoDuracion   STRING      COMMENT 'Rango de duracion: 0-1, 2-3, 4-6, 6-10 min, 10<.'
 )
 COMMENT 'Dimension que describe las canciones escuchadas.'

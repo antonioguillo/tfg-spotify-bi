@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 upload_raw.py
 
@@ -23,10 +22,6 @@ Estructura en HDFS:
         ├── artistas_info.csv
         ├── artistas_generos.csv
         └── albums_info.csv
-
-Uso:
-    python src/ingestion/upload_raw.py
-    python src/ingestion/upload_raw.py --force   # sobreescribe todo
 """
 import os
 import sys
@@ -58,7 +53,6 @@ SUBCARPETAS_SPOTIFY = [
     "MyData",
 ]
 
-
 # ============================================================
 # HELPERS
 # ============================================================
@@ -80,20 +74,12 @@ def hdfs_exists(ruta: str) -> bool:
 
 
 def subir_archivo(local: Path, hdfs_dest: str, force: bool) -> bool:
-    """
-    Sube un archivo a HDFS. Devuelve True si OK.
-
-    IMPORTANTE: Usa resolve() para convertir a ruta absoluta.
-    HDFS CLI (Java) no maneja bien rutas relativas ni rutas
-    con espacios en WSL. La ruta absoluta resuelve ambos problemas.
-    """
     hdfs_ruta = f"{hdfs_dest}/{local.name}"
 
     if not force and hdfs_exists(hdfs_ruta):
         print(f"    [SKIP] {local.name}")
         return True
 
-    # resolve() convierte a ruta absoluta — clave para HDFS en WSL
     ruta_absoluta = str(local.resolve())
 
     args = ["-put"]
@@ -111,11 +97,6 @@ def subir_archivo(local: Path, hdfs_dest: str, force: bool) -> bool:
 
 
 def encontrar_fuente_usuario(usuario_dir: Path) -> Path:
-    """
-    Busca la subcarpeta de datos dentro del directorio de un usuario.
-    Spotify cambia el nombre según la versión del paquete GDPR.
-    Si no hay subcarpeta, asume que los archivos están directamente.
-    """
     for nombre in SUBCARPETAS_SPOTIFY:
         subcarpeta = usuario_dir / nombre
         if subcarpeta.exists():
@@ -180,11 +161,6 @@ def subir_features(force: bool) -> tuple[int, int]:
         archivos.append(features_dir / "features_historico.csv")
         archivos.extend(sorted(features_dir.glob("features_kaggle*.csv")))
         archivos.append(features_dir / "canciones_features_kaggle.csv")
-
-    # Ubicación alternativa: data/raw/ directamente
-    if not features_dir.exists():
-        archivos.append(LOCAL_BASE / "features_historico.csv")
-        archivos.extend(sorted(LOCAL_BASE.glob("features_kaggle*.csv")))
 
     # Siempre buscar también en temp_api
     archivos.append(LOCAL_BASE / "temp_api" / "canciones_features_kaggle.csv")

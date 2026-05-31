@@ -1,3 +1,20 @@
+"""
+dim_cancion.py
+
+ETL de la dimensión Canción. Fuentes:
+  - canciones_features_kaggle.csv (HDFS Bronze): título, artista, álbum, duración.
+  - Playlist1.json de cada usuario (HDFS Bronze): qué canciones están en playlists.
+
+Pasos principales:
+  1. Leer el CSV de features y seleccionar columnas de identidad.
+  2. Calcular rangoDuracion como atributo derivado (bucketing de minutos).
+  3. Cruzar con playlists de usuario para marcar el campo `playlist` (TINYINT 1/0).
+  4. Generar ID autoincremental + fila centinela Desconocido (ID=-1).
+  5. Persistir en Hive (formato Parquet).
+
+Nota: el campo `playlist` es TINYINT (no BOOLEAN) para compatibilidad con
+todas las versiones de Hive y con el motor OLAP Apache Kylin.
+"""
 from pyspark.sql.functions import (
     col, monotonically_increasing_id, lit, when, explode
 )
@@ -66,7 +83,7 @@ def procesar_dim_cancion():
             ) \
             .filter(col("titulo_pl").isNotNull()) \
             .dropDuplicates(["titulo_pl", "artista_pl"]) \
-            .withColumn("en_playlist", lit(True))
+            .withColumn("en_playlist", lit(1))
 
         n_playlist = df_tracks.count()
         print(f"   Canciones unicas en playlists: {n_playlist}")
@@ -78,16 +95,17 @@ def procesar_dim_cancion():
             "left"
         ).drop("titulo_pl", "artista_pl")
 
+        # TINYINT: 1 = en playlist, 0 = no en playlist
         df_cancion = df_cancion.withColumn("playlist",
-            when(col("en_playlist") == True, True).otherwise(False)
+            when(col("en_playlist") == 1, lit(1)).otherwise(lit(0))
         ).drop("en_playlist")
 
-        encontradas = df_cancion.filter(col("playlist") == True).count()
+        encontradas = df_cancion.filter(col("playlist") == 1).count()
         print(f"   Canciones del historial en playlist: {encontradas}")
 
     except Exception as e:
         print(f"   [SKIP] No se pudieron leer playlists de HDFS: {e}")
-        df_cancion = df_cancion.withColumn("playlist", lit(False))
+        df_cancion = df_cancion.withColumn("playlist", lit(0))
 
     # ==========================================================
     # 5. Generar IDs + fila Desconocido + guardar en Hive
@@ -101,7 +119,7 @@ def procesar_dim_cancion():
         "artista":       "Desconocido",
         "album":         "Desconocido",
         "rangoDuracion": "Desconocido",
-        "playlist":      False,
+        "playlist":      0,
         "idCancion":     -1
     }], schema=df_cancion.schema)
     df_cancion = fila_desconocido.unionByName(df_cancion)

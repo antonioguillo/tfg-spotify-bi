@@ -1,3 +1,21 @@
+"""
+dim_album.py
+
+ETL de la dimensión Álbum. Fuentes:
+  - canciones_features_kaggle.csv (HDFS Bronze): nombre del álbum y artista.
+  - albums_info.csv (HDFS Bronze): productora/sello discográfico y año de
+    publicación, obtenidos de la API REST de MusicBrainz.
+
+Pasos principales:
+  1. Leer álbumes únicos (nombre + artista) del CSV de features.
+  2. Limpiar caracteres no ASCII del nombre del álbum (emojis, etc.).
+  3. Cruzar con albums_info.csv para enriquecer con productora y anyo.
+  4. Generar ID autoincremental + fila centinela Desconocido (ID=-1).
+  5. Persistir en Hive (formato Parquet).
+
+El campo `anyo` (INT) permite agrupar álbumes por décadas en el cubo OLAP
+usando la expresión FLOOR(anyo / 10) * 10.
+"""
 from pyspark.sql.functions import col, monotonically_increasing_id, lit, regexp_replace
 from src.utils.spark_session import get_spark_session
 from src.utils.paths import HDFS_FEATURES_CSV, HDFS_ALBUMS_INFO
@@ -24,23 +42,38 @@ def procesar_dim_album():
     df_album = df_album.withColumn("nombre", regexp_replace(col("nombre"), r"[^\x00-\x7F]+", ""))
 
     # ==========================================================
-    # 3. Cruzar con productoras de MusicBrainz desde HDFS
+    # 3. Cruzar con productoras y año de MusicBrainz desde HDFS
+    #
+    # albums_info.csv tiene columnas: Album, Artista, Productora, Anyo
+    # La columna Anyo puede estar ausente en versiones antiguas del CSV;
+    # en ese caso se imputa -1 para indicar año desconocido.
     # ==========================================================
-    print("3. Cruzando con productoras de MusicBrainz (HDFS Bronze)...")
+    print("3. Cruzando con productoras y año de MusicBrainz (HDFS Bronze)...")
     print(f"   Ruta: {HDFS_ALBUMS_INFO}")
     try:
         df_prod = spark.read.option("header", "true").csv(HDFS_ALBUMS_INFO)
-        df_prod = df_prod.select(
+        cols_prod = [c.lower() for c in df_prod.columns]
+
+        select_exprs = [
             col("Album").alias("nombre"),
             col("Artista").alias("artista"),
             col("Productora").alias("productora")
-        )
+        ]
+        # Año de publicación: permite agrupar por décadas en el cubo OLAP
+        if "anyo" in cols_prod:
+            select_exprs.append(col("Anyo").cast("int").alias("anyo"))
+        else:
+            select_exprs.append(lit(-1).alias("anyo"))
+
+        df_prod = df_prod.select(*select_exprs)
         df_album = df_album.join(df_prod, on=["nombre", "artista"], how="left")
         df_album = df_album.fillna("Desconocido", subset=["productora"])
-        print("   Productoras cargadas correctamente desde HDFS.")
+        df_album = df_album.fillna(-1, subset=["anyo"])
+        print("   Productoras y años cargados correctamente desde HDFS.")
     except Exception as e:
         print(f"   [SKIP] No se pudo leer albums_info.csv de HDFS: {e}")
-        df_album = df_album.withColumn("productora", lit("Desconocido"))
+        df_album = df_album.withColumn("productora", lit("Desconocido")) \
+                           .withColumn("anyo", lit(-1))
 
     # ==========================================================
     # 4. Generar IDs + fila Desconocido + guardar en Hive
@@ -53,6 +86,7 @@ def procesar_dim_album():
         "nombre":     "Desconocido",
         "artista":    "Desconocido",
         "productora": "Desconocido",
+        "anyo":       -1,
         "idAlbum":    -1
     }], schema=df_album.schema)
     df_album = fila_desconocido.unionByName(df_album)

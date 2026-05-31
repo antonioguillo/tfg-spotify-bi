@@ -12,17 +12,7 @@ HDFS_PORT = os.getenv("HDFS_PORT", "9000")
 
 
 def get_spark_session(app_name: str) -> SparkSession:
-    """
-    Crea o reutiliza una SparkSession configurada para el ecosistema Hadoop/Hive.
-    Todos los ETLs del proyecto deben usar esta función en lugar de construir
-    su propia sesión, para garantizar una configuración uniforme.
-
-    Args:
-        app_name: Nombre de la aplicación Spark (aparece en la Spark UI).
-
-    Returns:
-        SparkSession lista para usar.
-    """
+    
     spark = (
         SparkSession.builder
         .appName(app_name)
