@@ -513,27 +513,63 @@ def load_tables():
     loaded = r.get("result", {}).get("result", r)
     print(f"  OK: {loaded}")
 
+def _model_exists():
+    """Devuelve True si el modelo ya existe en el proyecto."""
+    r = api("GET", "/models", params={"projectName": PROJECT}, fatal=False)
+    if r is None:
+        return False
+    models = r if isinstance(r, list) else r.get("code", [])
+    if isinstance(models, list):
+        return any(m.get("name") == MODEL_DESC["name"] for m in models)
+    return False
+
 def create_model():
     step(3, "Crear modelo dimensional")
-    r = api("POST", "/models", {
+
+    if _model_exists():
+        print(f"  Modelo '{MODEL_DESC['name']}' ya existe — saltando creación.")
+        return
+
+    # Formato Kylin 4.x: modelDescData como JSON string + project + modelName
+    payload = {
         "modelDescData": json.dumps(MODEL_DESC),
+        "modelName": MODEL_DESC["name"],
         "project": PROJECT
-    }, fatal=False)
+    }
+    r = api("POST", "/models", payload, fatal=False)
     if r is None:
-        print("  Error al crear modelo. Puede que ya exista (continua si es asi)")
-    else:
-        print(f"  Modelo creado: {r.get('modelName', r)}")
+        print("  Fallo en creación de modelo (ver error arriba).")
+        sys.exit(1)
+
+    # Verificar que realmente se creó
+    if not _model_exists():
+        print(f"  ADVERTENCIA: la API respondió OK pero el modelo no aparece en GET /models.")
+        print(f"  Respuesta recibida: {json.dumps(r)[:300]}")
+        print(f"  Crea el modelo manualmente en la UI y relanza con --from-step=4")
+        sys.exit(1)
+
+    print(f"  Modelo creado y verificado: {r.get('modelName', MODEL_DESC['name'])}")
 
 def create_cube():
     step(4, "Crear cubo OLAP")
-    r = api("POST", "/cubes", {
-        "cubeDescData": json.dumps(CUBE_DESC),
-        "project": PROJECT
-    }, fatal=False)
-    if r is None:
-        print("  Error al crear cubo. Revisa los logs de Kylin en $KYLIN_HOME/logs/kylin.log")
+
+    # Verificar primero que el modelo existe
+    if not _model_exists():
+        print(f"  ERROR: El modelo '{MODEL_DESC['name']}' no existe en el proyecto '{PROJECT}'.")
+        print(f"  Ejecuta primero el paso 3 o créalo manualmente en la UI.")
         sys.exit(1)
-    print(f"  Cubo creado: {r.get('cubeName', r)}")
+
+    payload = {
+        "cubeDescData": json.dumps(CUBE_DESC),
+        "cubeName": CUBE_DESC["name"],
+        "project": PROJECT
+    }
+    r = api("POST", "/cubes", payload, fatal=False)
+    if r is None:
+        print("  Error al crear cubo (ver error arriba).")
+        print(f"  Revisa también: $KYLIN_HOME/logs/kylin.log")
+        sys.exit(1)
+    print(f"  Cubo creado: {r.get('cubeName', CUBE_DESC['name'])}")
 
 def build_cube():
     step(5, "Lanzar build completo del cubo")
