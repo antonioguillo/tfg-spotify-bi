@@ -57,7 +57,7 @@
   "dimensions": [
     {
       "table": "SPOTIFY_DW.DIM_CANCION",
-      "columns": ["TITULO", "ALBUM", "ARTISTA", "RANGODURACIÓN", "PLAYLIST"]
+      "columns": ["TITULO", "ALBUM", "ARTISTA", "RANGODURACION", "PLAYLIST"]
     },
     {
       "table": "SPOTIFY_DW.DIM_ARTISTA",
@@ -69,7 +69,7 @@
     },
     {
       "table": "SPOTIFY_DW.DIM_FECHA",
-      "columns": ["FECHASTRING", "DIA", "MES", "AÑO", "MESSTRING", "ESTACION", "FESTIVO", "FINDE"]
+      "columns": ["FECHASTRING", "DIA", "MES", "ANIO", "MESSTRING", "ESTACION", "FESTIVO", "FINDE"]
     },
     {
       "table": "SPOTIFY_DW.DIM_HORA",
@@ -182,7 +182,7 @@
     {
       "description": "Análisis temporal — hábitos de escucha por tiempo",
       "includes": [
-        "DIM_FECHA.AÑO",
+        "DIM_FECHA.ANIO",
         "DIM_FECHA.MES",
         "DIM_FECHA.MESSTRING",
         "DIM_FECHA.DIA",
@@ -193,7 +193,7 @@
       ],
       "select_rule": {
         "hierarchy_dimensions": [
-          ["DIM_FECHA.AÑO", "DIM_FECHA.MES", "DIM_FECHA.DIA"]
+          ["DIM_FECHA.ANIO", "DIM_FECHA.MES", "DIM_FECHA.DIA"]
         ]
       }
     },
@@ -207,7 +207,7 @@
         "DIM_ALBUM.NOMBRE",
         "DIM_ALBUM.PRODUCTORA",
         "DIM_CANCION.TITULO",
-        "DIM_CANCION.RANGODURACIÓN",
+        "DIM_CANCION.RANGODURACION",
         "DIM_CANCION.PLAYLIST"
       ],
       "select_rule": {
@@ -228,7 +228,7 @@
     {
       "description": "Cruce temporal + musical — para KPIs combinados",
       "includes": [
-        "DIM_FECHA.AÑO",
+        "DIM_FECHA.ANIO",
         "DIM_FECHA.MES",
         "DIM_FECHA.ESTACION",
         "DIM_FECHA.FINDE",
