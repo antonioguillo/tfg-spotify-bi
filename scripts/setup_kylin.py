@@ -134,66 +134,27 @@ MODEL_DESC = {
             }
         },
     ],
+    # En Kylin 4.x el modelo agrupa las columnas por tabla (no un objeto por columna)
     "dimensions": [
-        # DIM_FECHA
-        {"table": f"{DB}.DIM_FECHA", "column": "IDDATE",      "name": "IDDATE",      "status": "DIMENSION"},
-        {"table": f"{DB}.DIM_FECHA", "column": "ANIO",        "name": "ANIO",        "status": "DIMENSION"},
-        {"table": f"{DB}.DIM_FECHA", "column": "MES",         "name": "MES",         "status": "DIMENSION"},
-        {"table": f"{DB}.DIM_FECHA", "column": "DIA",         "name": "DIA",         "status": "DIMENSION"},
-        {"table": f"{DB}.DIM_FECHA", "column": "MESSTRING",   "name": "MESSTRING",   "status": "DIMENSION"},
-        {"table": f"{DB}.DIM_FECHA", "column": "ESTACION",    "name": "ESTACION",    "status": "DIMENSION"},
-        {"table": f"{DB}.DIM_FECHA", "column": "FINDE",       "name": "FINDE",       "status": "DIMENSION"},
-        {"table": f"{DB}.DIM_FECHA", "column": "FESTIVO",     "name": "FESTIVO",     "status": "DIMENSION"},
-        {"table": f"{DB}.DIM_FECHA", "column": "FECHASTRING", "name": "FECHASTRING", "status": "DIMENSION"},
-        # DIM_HORA
-        {"table": f"{DB}.DIM_HORA", "column": "IDHORA",        "name": "IDHORA",        "status": "DIMENSION"},
-        {"table": f"{DB}.DIM_HORA", "column": "FRANJAHORARIA", "name": "FRANJAHORARIA", "status": "DIMENSION"},
-        {"table": f"{DB}.DIM_HORA", "column": "INICIO",        "name": "INICIO",        "status": "DIMENSION"},
-        {"table": f"{DB}.DIM_HORA", "column": "FINAL",         "name": "FINAL",         "status": "DIMENSION"},
-        # DIM_ARTISTA (prefijo para desambiguar NOMBRE y PAIS que aparecen en otras tablas)
-        {"table": f"{DB}.DIM_ARTISTA", "column": "IDARTISTA", "name": "IDARTISTA",     "status": "DIMENSION"},
-        {"table": f"{DB}.DIM_ARTISTA", "column": "NOMBRE",    "name": "ARTISTA_NOMBRE","status": "DIMENSION"},
-        {"table": f"{DB}.DIM_ARTISTA", "column": "TIPO",      "name": "ARTISTA_TIPO",  "status": "DIMENSION"},
-        {"table": f"{DB}.DIM_ARTISTA", "column": "PAIS",      "name": "ARTISTA_PAIS",  "status": "DIMENSION"},
-        {"table": f"{DB}.DIM_ARTISTA", "column": "GENERO",    "name": "GENERO",        "status": "DIMENSION"},
-        # DIM_ALBUM
-        {"table": f"{DB}.DIM_ALBUM", "column": "IDALBUM",    "name": "IDALBUM",      "status": "DIMENSION"},
-        {"table": f"{DB}.DIM_ALBUM", "column": "NOMBRE",     "name": "ALBUM_NOMBRE", "status": "DIMENSION"},
-        {"table": f"{DB}.DIM_ALBUM", "column": "ARTISTA",    "name": "ALBUM_ARTISTA","status": "DIMENSION"},
-        {"table": f"{DB}.DIM_ALBUM", "column": "PRODUCTORA", "name": "PRODUCTORA",   "status": "DIMENSION"},
-        # DIM_CANCION
-        {"table": f"{DB}.DIM_CANCION", "column": "IDCANCION",     "name": "IDCANCION",     "status": "DIMENSION"},
-        {"table": f"{DB}.DIM_CANCION", "column": "TITULO",        "name": "TITULO",        "status": "DIMENSION"},
-        {"table": f"{DB}.DIM_CANCION", "column": "PLAYLIST",      "name": "PLAYLIST",      "status": "DIMENSION"},
-        {"table": f"{DB}.DIM_CANCION", "column": "RANGODURACION", "name": "RANGODURACION", "status": "DIMENSION"},
-        # DIM_USUARIO
-        {"table": f"{DB}.DIM_USUARIO", "column": "IDUSUARIO",   "name": "IDUSUARIO",     "status": "DIMENSION"},
-        {"table": f"{DB}.DIM_USUARIO", "column": "NOMBRE",      "name": "USUARIO_NOMBRE","status": "DIMENSION"},
-        {"table": f"{DB}.DIM_USUARIO", "column": "GENERACION",  "name": "GENERACION",    "status": "DIMENSION"},
-        {"table": f"{DB}.DIM_USUARIO", "column": "PAIS",        "name": "USUARIO_PAIS",  "status": "DIMENSION"},
-        {"table": f"{DB}.DIM_USUARIO", "column": "TIPOUSUARIO", "name": "TIPOUSUARIO",   "status": "DIMENSION"},
+        {"table": "DIM_FECHA",   "columns": ["IDDATE", "ANIO", "MES", "DIA", "MESSTRING", "ESTACION", "FINDE", "FESTIVO", "FECHASTRING"]},
+        {"table": "DIM_HORA",    "columns": ["IDHORA", "FRANJAHORARIA", "INICIO", "FINAL"]},
+        {"table": "DIM_ARTISTA", "columns": ["IDARTISTA", "NOMBRE", "TIPO", "PAIS", "GENERO"]},
+        {"table": "DIM_ALBUM",   "columns": ["IDALBUM", "NOMBRE", "ARTISTA", "PRODUCTORA"]},
+        {"table": "DIM_CANCION", "columns": ["IDCANCION", "TITULO", "PLAYLIST", "RANGODURACION"]},
+        {"table": "DIM_USUARIO", "columns": ["IDUSUARIO", "NOMBRE", "GENERACION", "PAIS", "TIPOUSUARIO"]},
     ],
+    # Métricas: solo nombre de columna (sin prefijo TABLE.)
     "metrics": [
-        "FACT_HISTORIAL.MSESCUCHADOS",
-        "FACT_HISTORIAL.MSNOESCUCHADOS",
-        "FACT_HISTORIAL.MSTOTAL",
-        "FACT_HISTORIAL.CANCIONESESCUCHADAS",
-        "FACT_HISTORIAL.DANCEABILITY",
-        "FACT_HISTORIAL.ENERGY",
-        "FACT_HISTORIAL.LOUDNESS",
-        "FACT_HISTORIAL.SPEECHINESS",
-        "FACT_HISTORIAL.ACOUSTICNESS",
-        "FACT_HISTORIAL.INSTRUMENTALNESS",
-        "FACT_HISTORIAL.LIVENESS",
-        "FACT_HISTORIAL.VALENCE",
-        "FACT_HISTORIAL.TEMPO",
-        "FACT_HISTORIAL.IDCANCION",
+        "MSESCUCHADOS", "MSNOESCUCHADOS", "MSTOTAL", "CANCIONESESCUCHADAS",
+        "DANCEABILITY", "ENERGY", "LOUDNESS", "SPEECHINESS",
+        "ACOUSTICNESS", "INSTRUMENTALNESS", "LIVENESS", "VALENCE", "TEMPO",
+        "IDCANCION",
     ],
     "filter_condition": "",
     "partition_desc": {
-        "partition_date_column": "",
+        "partition_date_column": None,
         "partition_date_format": "yyyy-MM-dd",
-        "partition_type": "APPEND"
+        "partition_type": "FULL_BUILD"
     },
     "capacity": "MEDIUM"
 }
