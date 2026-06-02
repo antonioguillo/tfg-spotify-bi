@@ -1,4 +1,4 @@
-from pyspark.sql.functions import col, to_date, year, when, monotonically_increasing_id
+from pyspark.sql.functions import col, lit, to_date, year, when, monotonically_increasing_id
 from src.utils.spark_session import get_spark_session
 from src.utils.paths import HDFS_USERDATA
 
@@ -32,7 +32,7 @@ def procesar_dim_usuario():
         col("email").alias("email"),
         col("generacion"),
         col("country").alias("pais"),
-        col("usernameType").alias("tipoUsuario")
+        lit("desconocido").alias("tipoUsuario")
     ).dropDuplicates(["nombre", "email"])
 
     # ==========================================================

@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 HIVE_HOST = os.getenv("HIVE_HOST", "localhost")
-HIVE_PORT = os.getenv("HIVE_PORT", "10000")
+HIVE_PORT = os.getenv("HIVE_PORT", "9083")   # Puerto del Hive Metastore Thrift (no HiveServer2)
 HIVE_DATABASE = os.getenv("HIVE_DATABASE", "spotify_dw")
 HDFS_HOST = os.getenv("HDFS_HOST", "localhost")
 HDFS_PORT = os.getenv("HDFS_PORT", "9000")

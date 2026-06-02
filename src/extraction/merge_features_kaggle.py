@@ -8,26 +8,26 @@ from rapidfuzz import fuzz, process
 # RUTAS
 # ============================================================
 CANCIONES_UNICAS   = "data/raw/temp_api/canciones_unicas.json"
-FEATURES_HISTORICO = "data/raw/features_historico.csv"
+FEATURES_HISTORICO = "data/raw/features/features_historico.csv"
 OUTPUT_FILE        = "data/raw/temp_api/canciones_features_kaggle.csv"
 
 KAGGLE_DATASETS = [
     {
-        "ruta": "data/raw/features_kaggle.csv",
+        "ruta": "data/raw/features/features_kaggle.csv",
         "col_cancion": "name",
         "col_artista": "artists",
         "col_album":   "album",
         "es_lista":    True
     },
     {
-        "ruta": "data/raw/features_kaggle_2.csv",
+        "ruta": "data/raw/features/features_kaggle_2.csv",
         "col_cancion": "track_name",
         "col_artista": "artists",
         "col_album":   "album_name",
         "es_lista":    True
     },
     {
-        "ruta": "data/raw/features_kaggle_3.csv",
+        "ruta": "data/raw/features/features_kaggle_3.csv",
         "col_cancion": "name",
         "col_artista": "artists",
         "col_album":   "album",
@@ -201,17 +201,23 @@ def merge_features():
     print(f"   Total: {len(df_canciones)}")
 
     # ----------------------------------------------------------
-    # 2. Dataset histórico personal
+    # 2. Dataset histórico personal (opcional)
     # ----------------------------------------------------------
     print("\n2. Cargando histórico personal...")
-    df_hist = pd.read_csv(FEATURES_HISTORICO)
-    df_hist = df_hist[FEATURE_COLS + ["trackName", "artistName"]].copy()
-    df_hist = df_hist.drop_duplicates(subset=["trackName", "artistName"])
-    df_hist["cancion_norm"] = df_hist["trackName"].apply(normalizar_texto)
-    df_hist["artista_norm"] = df_hist["artistName"].apply(normalizar_texto)
-    df_hist["album"]  = "Desconocido"
-    df_hist["origen"] = "historico"
-    print(f"   Canciones: {len(df_hist)}")
+    if os.path.exists(FEATURES_HISTORICO):
+        df_hist = pd.read_csv(FEATURES_HISTORICO)
+        df_hist = df_hist[FEATURE_COLS + ["trackName", "artistName"]].copy()
+        df_hist = df_hist.drop_duplicates(subset=["trackName", "artistName"])
+        df_hist["cancion_norm"] = df_hist["trackName"].apply(normalizar_texto)
+        df_hist["artista_norm"] = df_hist["artistName"].apply(normalizar_texto)
+        df_hist["album"]  = "Desconocido"
+        df_hist["origen"] = "historico"
+        print(f"   Canciones: {len(df_hist)}")
+    else:
+        print(f"   [SKIP] No existe {FEATURES_HISTORICO} — se omite el histórico personal.")
+        df_hist = pd.DataFrame(columns=FEATURE_COLS + ["trackName", "artistName",
+                                                        "cancion_norm", "artista_norm",
+                                                        "album", "origen"])
 
     # ----------------------------------------------------------
     # 3. Cargar y combinar todos los datasets de Kaggle
@@ -238,13 +244,17 @@ def merge_features():
     # 4. Cruce exacto: histórico
     # ----------------------------------------------------------
     print("\n4. Cruce exacto con histórico...")
-    encontrados_hist, pendientes = cruce_exacto(
-        pendientes, df_hist,
-        on=["cancion_norm", "artista_norm"],
-        cols_salida=cols_salida,
-        origen_label="historico"
-    )
-    print(f"   Encontradas: {len(encontrados_hist)} | Pendientes: {len(pendientes)}")
+    if not df_hist.empty:
+        encontrados_hist, pendientes = cruce_exacto(
+            pendientes, df_hist,
+            on=["cancion_norm", "artista_norm"],
+            cols_salida=cols_salida,
+            origen_label="historico"
+        )
+        print(f"   Encontradas: {len(encontrados_hist)} | Pendientes: {len(pendientes)}")
+    else:
+        encontrados_hist = pd.DataFrame(columns=["cancion", "artista"] + cols_salida)
+        print("   [SKIP] Histórico vacío — pasando directamente a Kaggle.")
 
     # ----------------------------------------------------------
     # 5. Cruce exacto: Kaggle (cancion + artista)
@@ -302,8 +312,8 @@ def merge_features():
     print("\n9. Consolidando resultado final...")
     cols_finales = ["cancion", "artista", "album", "origen"] + FEATURE_COLS
 
-    bloques = [encontrados_hist[cols_finales]]
-    for df_bloque in [encontrados_kaggle_exacto, encontrados_kaggle_cancion, encontrados_fuzzy, df_sintetico]:
+    bloques = []
+    for df_bloque in [encontrados_hist, encontrados_kaggle_exacto, encontrados_kaggle_cancion, encontrados_fuzzy, df_sintetico]:
         if not df_bloque.empty:
             bloques.append(df_bloque[cols_finales])
 

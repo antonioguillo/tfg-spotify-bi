@@ -64,7 +64,13 @@ def procesar_tabla_hechos():
     # ==========================================================
     print("2. Leyendo historiales de streaming (HDFS Bronze)...")
     print(f"   Ruta: {HDFS_STREAMING}")
-    df_streaming = spark.read.json(HDFS_STREAMING)
+    df_streaming = spark.read.option("multiline", "true").json(HDFS_STREAMING)
+
+    # input_file_name() debe aplicarse antes de cualquier JOIN (no admite múltiples fuentes)
+    df_streaming = df_streaming \
+        .withColumn("ruta_archivo",   input_file_name()) \
+        .withColumn("nombre_carpeta", regexp_extract(col("ruta_archivo"), r"usuarios/([^/]+)/", 1)) \
+        .drop("ruta_archivo")
 
     # ==========================================================
     # 3. Limpieza temporal
@@ -94,10 +100,6 @@ def procesar_tabla_hechos():
     # Extraemos "ALEX" con regex
     # ==========================================================
     print("5. Extrayendo usuario desde ruta del archivo HDFS...")
-    df_hechos = df_hechos \
-        .withColumn("ruta_archivo",   input_file_name()) \
-        .withColumn("nombre_carpeta", regexp_extract(col("ruta_archivo"), r"usuarios/([^/]+)/", 1))
-
     df_hechos = df_hechos.join(
         df_dim_usuario.select(col("idUsuario"), col("nombre").alias("nombre_carpeta")),
         on="nombre_carpeta",
