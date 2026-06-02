@@ -246,66 +246,68 @@ CUBE_DESC = {
                 "returntype": "bitmap"
             }
         },
+        # Kylin 4.x no soporta AVG como medida nativa. Se usan SUM; Kylin
+        # calcula AVG en query time como SUM(col)/_COUNT_ automáticamente.
         {
-            "name": "AVG_DANCEABILITY",
+            "name": "DANCEABILITY_SUM",
             "function": {
-                "expression": "AVG",
+                "expression": "SUM",
                 "parameter": {"type": "column", "value": "FACT_HISTORIAL.DANCEABILITY"},
                 "returntype": "double"
             }
         },
         {
-            "name": "AVG_ENERGY",
+            "name": "ENERGY_SUM",
             "function": {
-                "expression": "AVG",
+                "expression": "SUM",
                 "parameter": {"type": "column", "value": "FACT_HISTORIAL.ENERGY"},
                 "returntype": "double"
             }
         },
         {
-            "name": "AVG_VALENCE",
+            "name": "VALENCE_SUM",
             "function": {
-                "expression": "AVG",
+                "expression": "SUM",
                 "parameter": {"type": "column", "value": "FACT_HISTORIAL.VALENCE"},
                 "returntype": "double"
             }
         },
         {
-            "name": "AVG_ACOUSTICNESS",
+            "name": "ACOUSTICNESS_SUM",
             "function": {
-                "expression": "AVG",
+                "expression": "SUM",
                 "parameter": {"type": "column", "value": "FACT_HISTORIAL.ACOUSTICNESS"},
                 "returntype": "double"
             }
         },
         {
-            "name": "AVG_TEMPO",
+            "name": "TEMPO_SUM",
             "function": {
-                "expression": "AVG",
+                "expression": "SUM",
                 "parameter": {"type": "column", "value": "FACT_HISTORIAL.TEMPO"},
                 "returntype": "double"
             }
         },
         {
-            "name": "AVG_SPEECHINESS",
+            "name": "SPEECHINESS_SUM",
             "function": {
-                "expression": "AVG",
+                "expression": "SUM",
                 "parameter": {"type": "column", "value": "FACT_HISTORIAL.SPEECHINESS"},
                 "returntype": "double"
             }
         },
         {
-            "name": "AVG_INSTRUMENTALNESS",
+            "name": "INSTRUMENTALNESS_SUM",
             "function": {
-                "expression": "AVG",
+                "expression": "SUM",
                 "parameter": {"type": "column", "value": "FACT_HISTORIAL.INSTRUMENTALNESS"},
                 "returntype": "double"
             }
         },
         {
-            "name": "AVG_LIVENESS",
+            "name": "LIVENESS_SUM",
             "function": {
-                "expression": "AVG",
+                "expression": "SUM",
                 "parameter": {"type": "column", "value": "FACT_HISTORIAL.LIVENESS"},
                 "returntype": "double"
             }
@@ -403,9 +405,9 @@ CUBE_DESC = {
                             "MSESCUCHADOS_SUM", "MSNOESCUCHADOS_SUM",
                             "MSTOTAL_SUM", "CANCIONESESCUCHADAS_SUM",
                             "CANCIONES_DISTINTAS",
-                            "AVG_DANCEABILITY", "AVG_ENERGY", "AVG_VALENCE",
-                            "AVG_ACOUSTICNESS", "AVG_TEMPO", "AVG_SPEECHINESS",
-                            "AVG_INSTRUMENTALNESS", "AVG_LIVENESS"
+                            "DANCEABILITY_SUM", "ENERGY_SUM", "VALENCE_SUM",
+                            "ACOUSTICNESS_SUM", "TEMPO_SUM", "SPEECHINESS_SUM",
+                            "INSTRUMENTALNESS_SUM", "LIVENESS_SUM"
                         ]
                     }
                 ]
