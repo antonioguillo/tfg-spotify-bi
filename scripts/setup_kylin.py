@@ -154,7 +154,7 @@ MODEL_DESC = {
     "partition_desc": {
         "partition_date_column": None,
         "partition_date_format": "yyyy-MM-dd",
-        "partition_type": "FULL_BUILD"
+        "partition_type": "APPEND"
     },
     "capacity": "MEDIUM"
 }
