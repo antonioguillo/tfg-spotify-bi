@@ -487,27 +487,31 @@ def create_project():
 def load_tables():
     step(2, "Cargar tablas de Hive en Kylin")
     tables_str = ",".join(f"{DB}.{t}" for t in TABLES)
-    # Kylin 4.x: TableController.loadHiveTables usa @RequestParam, no @RequestBody
-    # → los parámetros van en la query string, no en el body
-    r = api("POST", "/tables", params={
-        "tables": tables_str,
-        "project": PROJECT,
-        "calculate": "false"
-    }, fatal=False)
+
+    # Kylin 4.x usa GET para cargar tablas desde Hive (no POST).
+    # El endpoint acepta las tablas como query params.
+    candidates = [
+        ("GET",  "/tables/load",  {"tables": tables_str, "project": PROJECT, "calculate": "false"}),
+        ("GET",  "/tables",       {"tables": tables_str, "project": PROJECT, "calculate": "false"}),
+        ("PUT",  "/tables",       {"tables": tables_str, "project": PROJECT, "calculate": "false"}),
+    ]
+
+    r = None
+    for method, path, params in candidates:
+        print(f"  Probando {method} {path} ...")
+        r = api(method, path, params=params, fatal=False)
+        if r is not None:
+            break
+
     if r is None:
-        # Alternativa: Kylin 4.x algunas versiones usan /tables/load
-        print("  Intentando endpoint alternativo /tables/load ...")
-        r = api("POST", "/tables/load", params={
-            "tables": tables_str,
-            "project": PROJECT,
-            "calculate": "false"
-        }, fatal=False)
-    if r is None:
-        print("  ERROR: No se pudieron cargar las tablas.")
-        print("  Cárgalas manualmente: Kylin UI → Data Source → Load Hive Table → spotify_dw")
+        print("\n  No se encontró el endpoint correcto de forma automática.")
+        print("  Carga las tablas manualmente y luego relanza el script desde --step=3:")
+        print("    Kylin UI → (proyecto spotify_bi) → Data Source → Load Table")
+        print("    Selecciona spotify_dw → marca las 7 tablas → Sync")
         sys.exit(1)
-    loaded = r.get("result", {}).get("result.tables", r)
-    print(f"  Tablas cargadas: {loaded}")
+
+    loaded = r.get("result", {}).get("result", r)
+    print(f"  OK: {loaded}")
 
 def create_model():
     step(3, "Crear modelo dimensional")
@@ -545,11 +549,22 @@ def build_cube():
     print(f"  Cuando el job llegue a READY, el cubo esta listo para consultas.")
 
 if __name__ == "__main__":
+    # --from-step=N  salta pasos ya completados manualmente
+    # Ejemplo: python3 setup_kylin.py --from-step=3  (salta proyecto y tablas)
+    from_step = 1
+    for arg in sys.argv[1:]:
+        if arg.startswith("--from-step="):
+            from_step = int(arg.split("=")[1])
+
     check_kylin()
-    create_project()
-    load_tables()
-    create_model()
-    create_cube()
+    if from_step <= 1:
+        create_project()
+    if from_step <= 2:
+        load_tables()
+    if from_step <= 3:
+        create_model()
+    if from_step <= 4:
+        create_cube()
     build_cube()
     print(f"\n{'='*60}")
     print("Pipeline Kylin completado.")
