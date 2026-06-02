@@ -1,0 +1,132 @@
+{
+  "uuid": "83ce7bd2-a7fe-224c-39f1-02f431dead3b",
+  "last_modified": 1780395733942,
+  "version": "4.0.0.0",
+  "name": "FACT_HISTORIAL",
+  "owner": "ADMIN",
+  "is_draft": false,
+  "description": "",
+  "fact_table": "SPOTIFY_DW.FACT_HISTORIAL",
+  "fact_table_alias": "FACT_HISTORIAL",
+  "lookups": [
+    {
+      "table": "SPOTIFY_DW.DIM_CANCION",
+      "kind": "LOOKUP",
+      "alias": "DIM_CANCION",
+      "join": {
+        "type": "left",
+        "primary_key": ["DIM_CANCION.IDCANCION"],
+        "foreign_key": ["FACT_HISTORIAL.IDCANCION"]
+      }
+    },
+    {
+      "table": "SPOTIFY_DW.DIM_USUARIO",
+      "kind": "LOOKUP",
+      "alias": "DIM_USUARIO",
+      "join": {
+        "type": "left",
+        "primary_key": ["DIM_USUARIO.IDUSUARIO"],
+        "foreign_key": ["FACT_HISTORIAL.IDUSUARIO"]
+      }
+    },
+    {
+      "table": "SPOTIFY_DW.DIM_HORA",
+      "kind": "LOOKUP",
+      "alias": "DIM_HORA",
+      "join": {
+        "type": "left",
+        "primary_key": ["DIM_HORA.IDHORA"],
+        "foreign_key": ["FACT_HISTORIAL.IDHORA"]
+      }
+    },
+    {
+      "table": "SPOTIFY_DW.DIM_ARTISTA",
+      "kind": "LOOKUP",
+      "alias": "DIM_ARTISTA",
+      "join": {
+        "type": "left",
+        "primary_key": ["DIM_ARTISTA.IDARTISTA"],
+        "foreign_key": ["FACT_HISTORIAL.IDARTISTA"]
+      }
+    },
+    {
+      "table": "SPOTIFY_DW.DIM_ALBUM",
+      "kind": "LOOKUP",
+      "alias": "DIM_ALBUM",
+      "join": {
+        "type": "left",
+        "primary_key": ["DIM_ALBUM.IDALBUM"],
+        "foreign_key": ["FACT_HISTORIAL.IDALBUM"]
+      }
+    },
+    {
+      "table": "SPOTIFY_DW.DIM_FECHA",
+      "kind": "LOOKUP",
+      "alias": "DIM_FECHA",
+      "join": {
+        "type": "left",
+        "primary_key": ["DIM_FECHA.IDDATE"],
+        "foreign_key": ["FACT_HISTORIAL.IDDATE"]
+      }
+    }
+  ],
+  "dimensions": [
+    {
+      "table": "FACT_HISTORIAL",
+      "columns": ["IDCANCION", "IDUSUARIO", "IDHORA", "IDARTISTA", "IDALBUM", "IDDATE"]
+    },
+    {
+      "table": "DIM_CANCION",
+      "columns": ["TITULO", "ARTISTA", "ALBUM", "RANGODURACION", "PLAYLIST", "IDCANCION"]
+    },
+    {
+      "table": "DIM_USUARIO",
+      "columns": ["NOMBRE", "EMAIL", "GENERACION", "PAIS", "TIPOUSUARIO", "IDUSUARIO"]
+    },
+    {
+      "table": "DIM_HORA",
+      "columns": ["IDHORA", "FRANJAHORARIA", "INICIO", "FINAL"]
+    },
+    {
+      "table": "DIM_ARTISTA",
+      "columns": ["NOMBRE", "TIPO", "PAIS", "GENERO", "IDARTISTA"]
+    },
+    {
+      "table": "DIM_ALBUM",
+      "columns": ["NOMBRE", "ARTISTA", "PRODUCTORA", "ANYO", "IDALBUM"]
+    },
+    {
+      "table": "DIM_FECHA",
+      "columns": ["ESTACION", "MESSTRING", "FECHASTRING", "FINDE", "FESTIVO", "ANIO", "MES", "IDDATE", "DIA"]
+    }
+  ],
+  "metrics": [
+    "FACT_HISTORIAL.SPEECHINESS",
+    "FACT_HISTORIAL.ACOUSTICNESS",
+    "FACT_HISTORIAL.INSTRUMENTALNESS",
+    "FACT_HISTORIAL.LIVENESS",
+    "FACT_HISTORIAL.VALENCE",
+    "FACT_HISTORIAL.TEMPO",
+    "FACT_HISTORIAL.MODE",
+    "FACT_HISTORIAL.LOUDNESS",
+    "FACT_HISTORIAL.KEY",
+    "FACT_HISTORIAL.ENERGY",
+    "FACT_HISTORIAL.DANCEABILITY",
+    "FACT_HISTORIAL.MSTOTAL",
+    "FACT_HISTORIAL.CANCIONESESCUCHADAS",
+    "FACT_HISTORIAL.MSNOESCUCHADOS",
+    "FACT_HISTORIAL.MSESCUCHADOS"
+  ],
+  "filter_condition": "",
+  "partition_desc": {
+    "partition_date_column": null,
+    "partition_time_column": null,
+    "partition_date_start": 0,
+    "partition_date_format": "yyyy-MM-dd",
+    "partition_time_format": "HH:mm:ss",
+    "partition_type": "APPEND",
+    "partition_condition_builder": "org.apache.kylin.metadata.model.PartitionDesc$DefaultPartitionConditionBuilder"
+  },
+  "capacity": "MEDIUM",
+  "projectName": "spotify_bi"
+}

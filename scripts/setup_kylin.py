@@ -81,7 +81,7 @@ def api(method, path, body=None, params=None, fatal=True, form=False):
 # ── Descriptores Kylin ────────────────────────────────────────────────────────
 
 MODEL_DESC = {
-    "name": "spotify_bi_model",
+    "name": "FACT_HISTORIAL",
     "description": "Modelo dimensional Spotify BI — esquema estrella sobre historial de reproduccion",
     "fact_table": f"{DB}.FACT_HISTORIAL",
     "lookups": [
@@ -143,12 +143,15 @@ MODEL_DESC = {
         {"table": "DIM_CANCION", "columns": ["IDCANCION", "TITULO", "PLAYLIST", "RANGODURACION"]},
         {"table": "DIM_USUARIO", "columns": ["IDUSUARIO", "NOMBRE", "GENERACION", "PAIS", "TIPOUSUARIO"]},
     ],
-    # Métricas: solo nombre de columna (sin prefijo TABLE.)
+    # Métricas: formato TABLE.COLUMN (confirmado por export real de Kylin)
     "metrics": [
-        "MSESCUCHADOS", "MSNOESCUCHADOS", "MSTOTAL", "CANCIONESESCUCHADAS",
-        "DANCEABILITY", "ENERGY", "LOUDNESS", "SPEECHINESS",
-        "ACOUSTICNESS", "INSTRUMENTALNESS", "LIVENESS", "VALENCE", "TEMPO",
-        "IDCANCION",
+        "FACT_HISTORIAL.MSESCUCHADOS", "FACT_HISTORIAL.MSNOESCUCHADOS",
+        "FACT_HISTORIAL.MSTOTAL", "FACT_HISTORIAL.CANCIONESESCUCHADAS",
+        "FACT_HISTORIAL.DANCEABILITY", "FACT_HISTORIAL.ENERGY",
+        "FACT_HISTORIAL.LOUDNESS", "FACT_HISTORIAL.SPEECHINESS",
+        "FACT_HISTORIAL.ACOUSTICNESS", "FACT_HISTORIAL.INSTRUMENTALNESS",
+        "FACT_HISTORIAL.LIVENESS", "FACT_HISTORIAL.VALENCE",
+        "FACT_HISTORIAL.TEMPO", "FACT_HISTORIAL.IDCANCION",
     ],
     "filter_condition": "",
     "partition_desc": {
@@ -161,7 +164,7 @@ MODEL_DESC = {
 
 CUBE_DESC = {
     "name": "spotify_bi_cube",
-    "model_name": "spotify_bi_model",
+    "model_name": "FACT_HISTORIAL",
     "description": "Cubo OLAP para analisis multidimensional del historial de Spotify",
     "null_string": None,
     "dimensions": [
