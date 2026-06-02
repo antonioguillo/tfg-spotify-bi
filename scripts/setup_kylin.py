@@ -20,6 +20,7 @@ import sys
 import time
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode
 
 # ── Configuración ─────────────────────────────────────────────────────────────
 HOST    = "http://localhost:7070"
@@ -36,20 +37,37 @@ TABLES = [
 
 # ── HTTP helper ───────────────────────────────────────────────────────────────
 
-def _headers():
+def _headers(content_type="application/json"):
     creds = base64.b64encode(f"{USER}:{PASSWD}".encode()).decode()
-    return {"Authorization": f"Basic {creds}", "Content-Type": "application/json"}
+    return {"Authorization": f"Basic {creds}", "Content-Type": content_type}
 
-def api(method, path, body=None, fatal=True):
-    url  = f"{HOST}/kylin/api{path}"
-    data = json.dumps(body).encode() if body is not None else None
-    req  = Request(url, data=data, headers=_headers(), method=method)
+def api(method, path, body=None, params=None, fatal=True, form=False):
+    """
+    body  → se serializa como JSON (application/json)
+    params → se añaden como query string a la URL
+    form  → body se codifica como form-urlencoded en lugar de JSON
+    """
+    url = f"{HOST}/kylin/api{path}"
+    if params:
+        url += "?" + urlencode(params)
+
+    if form and body:
+        data = urlencode(body).encode()
+        headers = _headers("application/x-www-form-urlencoded")
+    elif body is not None:
+        data = json.dumps(body).encode()
+        headers = _headers("application/json")
+    else:
+        data = None
+        headers = _headers("application/json")
+
+    req = Request(url, data=data, headers=headers, method=method)
     try:
         with urlopen(req, timeout=90) as r:
             raw = r.read().decode()
             return json.loads(raw) if raw.strip() else {}
     except HTTPError as e:
-        msg = e.read().decode()[:600]
+        msg = e.read().decode()[:800]
         print(f"  HTTP {e.code}: {msg}")
         if fatal:
             sys.exit(1)
@@ -458,24 +476,37 @@ def check_kylin():
 
 def create_project():
     step(1, f"Crear proyecto '{PROJECT}'")
-    r = api("POST", "/projects", {"name": PROJECT, "description": "Spotify BI TFG"}, fatal=False)
+    # Kylin 4.x: ProjectController.saveProject espera {"projectDescData": "{json_string}"}
+    payload = {"projectDescData": json.dumps({"name": PROJECT, "description": "Spotify BI TFG"})}
+    r = api("POST", "/projects", payload, fatal=False)
     if r is None:
-        print("  El proyecto ya existe o hubo un error (continuando...)")
+        print("  El proyecto puede que ya exista — continuando...")
     else:
         print(f"  Proyecto creado: {r.get('name', r)}")
 
 def load_tables():
     step(2, "Cargar tablas de Hive en Kylin")
     tables_str = ",".join(f"{DB}.{t}" for t in TABLES)
-    r = api("POST", "/tables", {
+    # Kylin 4.x: TableController.loadHiveTables usa @RequestParam, no @RequestBody
+    # → los parámetros van en la query string, no en el body
+    r = api("POST", "/tables", params={
         "tables": tables_str,
         "project": PROJECT,
-        "calculate": False
+        "calculate": "false"
     }, fatal=False)
     if r is None:
-        print("  Error al cargar tablas — verifica que el Metastore Hive está activo y las tablas existen")
+        # Alternativa: Kylin 4.x algunas versiones usan /tables/load
+        print("  Intentando endpoint alternativo /tables/load ...")
+        r = api("POST", "/tables/load", params={
+            "tables": tables_str,
+            "project": PROJECT,
+            "calculate": "false"
+        }, fatal=False)
+    if r is None:
+        print("  ERROR: No se pudieron cargar las tablas.")
+        print("  Cárgalas manualmente: Kylin UI → Data Source → Load Hive Table → spotify_dw")
         sys.exit(1)
-    loaded = r.get("result", {}).get("result", r)
+    loaded = r.get("result", {}).get("result.tables", r)
     print(f"  Tablas cargadas: {loaded}")
 
 def create_model():
