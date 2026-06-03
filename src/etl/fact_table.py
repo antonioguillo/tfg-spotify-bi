@@ -180,7 +180,7 @@ def procesar_tabla_hechos():
     # 10. Rellenar FKs nulas con -1 (registro "Desconocido")
     # ==========================================================
     print("10. Rellenando FKs nulas...")
-    df_hechos = df_hechos.fillna(-1, subset=["idCancion", "idArtista", "idAlbum"])
+    df_hechos = df_hechos.fillna(-1, subset=["idCancion", "idArtista", "idAlbum", "idHora", "idDate", "idUsuario"])
 
     # ==========================================================
     # 10b. Imputar nulos en audio features y msTotal

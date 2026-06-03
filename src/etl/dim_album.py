@@ -16,7 +16,8 @@ Pasos principales:
 El campo `anyo` (INT) permite agrupar álbumes por décadas en el cubo OLAP
 usando la expresión FLOOR(anyo / 10) * 10.
 """
-from pyspark.sql.functions import col, monotonically_increasing_id, lit, regexp_replace
+from pyspark.sql.functions import col, lit, regexp_replace, row_number
+from pyspark.sql.window import Window
 from src.utils.spark_session import get_spark_session
 from src.utils.paths import HDFS_FEATURES_CSV, HDFS_ALBUMS_INFO
 
@@ -78,8 +79,9 @@ def procesar_dim_album():
     # ==========================================================
     # 4. Generar IDs + fila Desconocido + guardar en Hive
     # ==========================================================
-    print("4. Generando IDs autoincrementales...")
-    df_album = df_album.withColumn("idAlbum", monotonically_increasing_id())
+    print("4. Generando IDs secuenciales (row_number, empieza en 1)...")
+    w = Window.orderBy("nombre", "artista")
+    df_album = df_album.withColumn("idAlbum", row_number().over(w))
 
     print("5. Añadiendo la fila 'Desconocido' (ID -1)...")
     fila_desconocido = spark.createDataFrame([{

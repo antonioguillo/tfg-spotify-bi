@@ -16,8 +16,9 @@ Nota: el campo `playlist` es TINYINT (no BOOLEAN) para compatibilidad con
 todas las versiones de Hive y con el motor OLAP Apache Kylin.
 """
 from pyspark.sql.functions import (
-    col, monotonically_increasing_id, lit, when, explode
+    col, lit, when, explode, row_number
 )
+from pyspark.sql.window import Window
 from src.utils.spark_session import get_spark_session
 from src.utils.paths import HDFS_FEATURES_CSV, HDFS_USUARIOS
 
@@ -110,8 +111,9 @@ def procesar_dim_cancion():
     # ==========================================================
     # 5. Generar IDs + fila Desconocido + guardar en Hive
     # ==========================================================
-    print("5. Generando IDs...")
-    df_cancion = df_cancion.withColumn("idCancion", monotonically_increasing_id())
+    print("5. Generando IDs secuenciales (row_number, empieza en 1)...")
+    w = Window.orderBy("titulo", "artista")
+    df_cancion = df_cancion.withColumn("idCancion", row_number().over(w))
 
     print("6. Anadiendo fila 'Desconocido' (ID -1)...")
     fila_desconocido = spark.createDataFrame([{

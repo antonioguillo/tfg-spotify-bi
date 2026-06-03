@@ -1,4 +1,5 @@
-from pyspark.sql.functions import col, lit, to_date, year, when, monotonically_increasing_id
+from pyspark.sql.functions import col, lit, to_date, year, when, row_number, input_file_name, regexp_extract
+from pyspark.sql.window import Window
 from src.utils.spark_session import get_spark_session
 from src.utils.paths import HDFS_USERDATA
 
@@ -8,10 +9,12 @@ def procesar_dim_usuario():
 
     # ==========================================================
     # 1. Leer Userdata.json desde HDFS Bronze
+    # input_file_name() debe llamarse antes de cualquier join
     # ==========================================================
     print("1. Leyendo archivos Userdata.json de todos los usuarios (HDFS Bronze)...")
     print(f"   Ruta: {HDFS_USERDATA}")
-    df_usuario = spark.read.option("multiline", "true").json(HDFS_USERDATA)
+    df_usuario = spark.read.option("multiline", "true").json(HDFS_USERDATA) \
+        .withColumn("nombre_carpeta", regexp_extract(input_file_name(), r"usuarios/([^/]+)/", 1))
 
     # ==========================================================
     # 2. Transformar datos
@@ -27,19 +30,22 @@ def procesar_dim_usuario():
         .otherwise("Generacion Z")
     )
 
+    # nombre = nombre de carpeta HDFS (ALEX, SERGI, YO...) para que el join
+    # en fact_table.py funcione (extrae el mismo valor del path del archivo)
     df_usuario = df_usuario.select(
-        col("username").alias("nombre"),
+        col("nombre_carpeta").alias("nombre"),
         col("email").alias("email"),
         col("generacion"),
         col("country").alias("pais"),
         lit("desconocido").alias("tipoUsuario")
-    ).dropDuplicates(["nombre", "email"])
+    ).dropDuplicates(["nombre"])
 
     # ==========================================================
     # 3. Generar IDs + guardar en Hive
     # ==========================================================
-    print("3. Generando IDs...")
-    df_usuario = df_usuario.withColumn("idUsuario", monotonically_increasing_id())
+    print("3. Generando IDs secuenciales (row_number, empieza en 1)...")
+    w = Window.orderBy("nombre")
+    df_usuario = df_usuario.withColumn("idUsuario", row_number().over(w))
 
     df_usuario.show(truncate=False)
 

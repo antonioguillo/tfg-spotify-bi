@@ -16,7 +16,8 @@ Pasos principales:
   5. Persistir en Hive (formato Parquet).
 """
 import os
-from pyspark.sql.functions import col, monotonically_increasing_id, lit
+from pyspark.sql.functions import col, lit, row_number
+from pyspark.sql.window import Window
 from src.utils.spark_session import get_spark_session
 from src.utils.paths import HDFS_FEATURES_CSV, HDFS_ARTISTAS_INFO, HDFS_ARTISTAS_GEN
 
@@ -74,8 +75,9 @@ def procesar_dim_artista():
     # ==========================================================
     # 4. Generar IDs + fila Desconocido + guardar en Hive
     # ==========================================================
-    print("4. Generando IDs...")
-    df_artista = df_artista.withColumn("idArtista", monotonically_increasing_id())
+    print("4. Generando IDs secuenciales (row_number, empieza en 1)...")
+    w = Window.orderBy("nombre")
+    df_artista = df_artista.withColumn("idArtista", row_number().over(w))
 
     print("5. Añadiendo fila 'Desconocido' (ID -1)...")
     fila_desconocido = spark.createDataFrame([{
