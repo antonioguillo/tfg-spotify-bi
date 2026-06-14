@@ -187,6 +187,7 @@ CUBE_DESC = {
         # DIM_ALBUM
         {"name": "ALBUM_NOMBRE", "table": "DIM_ALBUM",   "column": "NOMBRE",       "derived": None},
         {"name": "PRODUCTORA",   "table": "DIM_ALBUM",   "column": "PRODUCTORA",   "derived": None},
+        {"name": "ALBUM_ANYO",   "table": "DIM_ALBUM",   "column": "ANYO",         "derived": None},
         # DIM_CANCION
         {"name": "TITULO",       "table": "DIM_CANCION", "column": "TITULO",       "derived": None},
         {"name": "RANGODURACION","table": "DIM_CANCION", "column": "RANGODURACION","derived": None},
